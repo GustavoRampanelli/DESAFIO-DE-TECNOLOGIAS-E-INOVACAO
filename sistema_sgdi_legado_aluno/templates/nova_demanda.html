@@ -17,10 +17,17 @@
     <br>
     
     <div>
-        <label>Solicitante:</label><br>
-        <input type="text" name="solicitante">
-    </div>
-    <br>
+        <label for="Solicitante">Solicitante:</label><br>
+        <select name="solicitante_id" id="solicitante" required>
+        <option value="">Selecione o solicitante</option>
+
+        {% for usuario in usuarios %}
+            <option value="{{ usuario['id'] }}">
+                {{ usuario['nome'] }}
+            </option>
+        {% endfor %}
+    </select>
+</div>
     
     <button type="submit">Salvar</button>
     <a href="/"><button type="button">Cancelar</button></a>

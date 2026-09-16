@@ -23,24 +23,41 @@ def index():
 
 @app.route('/nova_demanda', methods=['GET', 'POST'])
 def nova_demanda():
+    conn = sqlite3.connect('demandas.db')
+    conn.row_factory = sqlite3.Row
+
     if request.method == 'POST':
         titulo = request.form['titulo']
         descricao = request.form['descricao']
-        solicitante = request.form['solicitante']
+        solicitante_id = request.form['solicitante_id']
 
+        conn.execute(
+            '''
+            INSERT INTO demandas
+            (titulo, descricao, solicitante, data_criacao)
+            VALUES (?, ?, ?, ?)
+            ''',
+            (titulo, descricao, solicitante_id, datetime.now())
+        )
 
-        conn = sqlite3.connect('demandas.db')
-        cursor = conn.cursor()
-
-        cursor.execute(
-            f"INSERT INTO demandas (titulo, descricao, solicitante, data_criacao) VALUES ('{titulo}', '{descricao}', '{solicitante}', '{datetime.now()}')")
         conn.commit()
         conn.close()
 
         flash('Salvo!')
         return redirect('/')
 
-    return render_template('nova_demanda.html')
+    # Busca os usuários que JÁ estão no banco
+    usuarios = conn.execute(
+        'SELECT * FROM usuarios ORDER BY nome'
+    ).fetchall()
+
+    conn.close()
+
+    return render_template(
+        'nova_demanda.html',
+        usuarios=usuarios
+    )
+
 
 
 @app.route('/editar/<id>', methods=['GET', 'POST'])

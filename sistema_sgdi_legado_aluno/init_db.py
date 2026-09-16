@@ -26,6 +26,30 @@ CREATE TABLE IF NOT EXISTS comentarios (
 )
 ''')
 
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS usuarios (
+    id INTEGER PRIMARY KEY  AUTOINCREMENT   , 
+    nome TEXT NOT NULL,
+    email TEXT UNIQUE )
+'''
+)
+
+cursor.execute('''
+INSERT OR IGNORE INTO usuarios (nome, email)
+VALUES (?, ?)
+''', ('Arthur Spada', 'arthur@email.com'))
+
+cursor.execute('''
+INSERT OR IGNORE INTO usuarios (nome, email)
+VALUES (?, ?)
+''', ('Gustavo Rampanelli', 'gustavo@email.com'))
+
+cursor.execute('''
+INSERT OR IGNORE INTO usuarios (nome, email)
+VALUES (?, ?)
+''', ('Eduardo', 'eduardo@email.com'))
+
+
 
 cursor.execute("INSERT INTO demandas VALUES (1, 'Corrigir bug no login', 'Usuários não conseguem fazer login', 'João Silva', '2024-01-15 10:30:00')")
 cursor.execute("INSERT INTO demandas VALUES (2, 'Implementar relatório de vendas', 'Precisamos de um relatório mensal', 'Maria Santos', '2024-01-16 14:20:00')")
