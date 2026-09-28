@@ -22,6 +22,37 @@
         <input type="text" name="solicitante" value="{{ demanda[3] }}">
     </div>
     <br>
+
+    <div>
+        <label for="status">Status:</label><br>
+        <select name="status" id="status">
+            {% for opcao in status_opcoes %}
+                <option value="{{ opcao }}" {{ 'selected' if demanda[5] == opcao }}>{{ opcao }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <br>
+
+    <div>
+        <label for="prioridade">Prioridade:</label><br>
+        <select name="prioridade" id="prioridade">
+            {% for opcao in prioridade_opcoes %}
+                <option value="{{ opcao }}" {{ 'selected' if demanda[6] == opcao }}>{{ opcao }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <br>
+
+    <div>
+        <label for="responsavel">Responsável:</label><br>
+        <select name="responsavel_id" id="responsavel">
+            <option value="">Sem responsável</option>
+            {% for usuario in usuarios %}
+                <option value="{{ usuario['id'] }}" {{ 'selected' if demanda['responsavel_id'] == usuario['id'] }}>{{ usuario['nome'] }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <br>
     
     <div>
         <label>Data de Criação:</label><br>

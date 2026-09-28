@@ -28,6 +28,28 @@
         {% endfor %}
     </select>
 </div>
+    <br>
+
+    <div>
+        <label for="prioridade">Prioridade:</label><br>
+        <select name="prioridade" id="prioridade">
+            {% for opcao in prioridade_opcoes %}
+                <option value="{{ opcao }}" {{ 'selected' if opcao == prioridade_padrao }}>{{ opcao }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <br>
+
+    <div>
+        <label for="responsavel">Responsável:</label><br>
+        <select name="responsavel_id" id="responsavel">
+            <option value="">Sem responsável</option>
+            {% for usuario in usuarios %}
+                <option value="{{ usuario['id'] }}">{{ usuario['nome'] }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <br>
     
     <button type="submit">Salvar</button>
     <a href="/"><button type="button">Cancelar</button></a>

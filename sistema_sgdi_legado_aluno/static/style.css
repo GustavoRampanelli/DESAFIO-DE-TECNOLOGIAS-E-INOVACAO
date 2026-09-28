@@ -98,6 +98,19 @@ textarea {
     resize: vertical;
 }
 
+.filtros {
+    margin-bottom: 15px;
+}
+
+.filtros select {
+    padding: 6px;
+    margin-right: 10px;
+}
+
+.filtros a {
+    margin-left: 10px;
+}
+
 .paginacao {
     margin-top: 15px;
 }

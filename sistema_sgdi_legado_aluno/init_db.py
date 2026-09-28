@@ -16,7 +16,11 @@ CREATE TABLE IF NOT EXISTS demandas (
     titulo TEXT NOT NULL,
     descricao TEXT,
     solicitante TEXT,
-    data_criacao TEXT
+    data_criacao TEXT,
+    status TEXT NOT NULL DEFAULT 'Aberta',
+    prioridade TEXT NOT NULL DEFAULT 'Média',
+    responsavel_id INTEGER,
+    FOREIGN KEY (responsavel_id) REFERENCES usuarios(id)
 )
 ''')
 
@@ -56,29 +60,45 @@ demandas = [
         'Usuários não conseguem fazer login',
         'João Silva',
         '2024-01-15 10:30:00',
+        'Concluída',
+        'Crítica',
+        3,
     ),
     (
         'Implementar relatório de vendas',
         'Precisamos de um relatório mensal',
         'Maria Santos',
         '2024-01-16 14:20:00',
+        'Em andamento',
+        'Média',
+        2,
     ),
     (
         'Melhorar performance',
         'Sistema está lento',
         'Pedro Costa',
         '2024-01-17 09:15:00',
+        'Aberta',
+        'Alta',
+        1,
     ),
     (
         'Adicionar filtros',
         'Usuários querem filtrar demandas',
         'Ana Lima',
         '2024-01-18 11:00:00',
+        'Aberta',
+        'Baixa',
+        None,
     ),
 ]
 
-# Demandas extras para testar a paginação (Sprint 3)
+# Demandas extras para testar a paginação e os filtros (Sprint 3)
 solicitantes_teste = ['João Silva', 'Maria Santos', 'Pedro Costa', 'Ana Lima']
+status_teste = ['Aberta', 'Em andamento', 'Concluída']
+prioridade_teste = ['Baixa', 'Média', 'Alta', 'Crítica']
+# ids da tabela usuarios (None = sem responsável); tamanho 5 para variar as combinações com as outras listas
+responsavel_teste = [1, 2, 3, 1, None]
 for i in range(5, 26):
     demandas.append(
         (
@@ -86,13 +106,16 @@ for i in range(5, 26):
             f'Descrição da demanda de teste {i}',
             solicitantes_teste[i % len(solicitantes_teste)],
             f'2024-02-{i:02d} 10:00:00',
+            status_teste[i % len(status_teste)],
+            prioridade_teste[i % len(prioridade_teste)],
+            responsavel_teste[i % len(responsavel_teste)],
         )
     )
 
 cursor.executemany(
     '''
-INSERT INTO demandas (titulo, descricao, solicitante, data_criacao)
-VALUES (?, ?, ?, ?)
+INSERT INTO demandas (titulo, descricao, solicitante, data_criacao, status, prioridade, responsavel_id)
+VALUES (?, ?, ?, ?, ?, ?, ?)
 ''',
     demandas,
 )
