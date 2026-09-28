@@ -35,7 +35,7 @@ body {
 
 .container {
     max-width: 1200px;
-    margin: 20px auto;
+    margin: 20px auto 70px;
     background: white;
     padding: 30px;
 }
@@ -96,4 +96,26 @@ input[type="text"], textarea {
 
 textarea {
     resize: vertical;
+}
+
+.paginacao {
+    margin-top: 15px;
+}
+
+.paginacao a, .paginacao strong {
+    display: inline-block;
+    padding: 5px 10px;
+    margin-right: 4px;
+    border: 1px solid #ddd;
+    text-decoration: none;
+}
+
+.paginacao strong {
+    background-color: #333;
+    color: white;
+}
+
+.paginacao-info {
+    margin-left: 10px;
+    color: #666;
 }

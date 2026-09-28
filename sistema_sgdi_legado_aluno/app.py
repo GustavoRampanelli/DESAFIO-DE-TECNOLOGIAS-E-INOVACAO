@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, flash
+import math
 import sqlite3
 from datetime import datetime
 
@@ -12,13 +13,45 @@ def get_db():
     return conn
 
 
+POR_PAGINA = 10
+
+
 @app.route('/')
 def index():
-    conn = sqlite3.connect('demandas.db')
-    cursor = conn.cursor()
-    demandas = cursor.execute('SELECT * FROM demandas').fetchall()
+    pagina = request.args.get('pagina', 1, type=int)
+    termo = request.args.get('q', '').strip()
+
+    # Cada filtro ativo adiciona uma condição ao WHERE (com parâmetros, sem concatenar valores)
+    condicoes = []
+    parametros = []
+    if termo:
+        condicoes.append('titulo LIKE ?')
+        parametros.append(f'%{termo}%')
+
+    where = 'WHERE ' + ' AND '.join(condicoes) if condicoes else ''
+
+    conn = get_db()
+    total = conn.execute(f'SELECT COUNT(*) FROM demandas {where}', parametros).fetchone()[0]
+    total_paginas = max(1, math.ceil(total / POR_PAGINA))
+    pagina = min(max(pagina, 1), total_paginas)
+
+    demandas = conn.execute(
+        f'SELECT * FROM demandas {where} ORDER BY id LIMIT ? OFFSET ?',
+        parametros + [POR_PAGINA, (pagina - 1) * POR_PAGINA]
+    ).fetchall()
     conn.close()
-    return render_template('index.html', demandas=demandas)
+
+    # Filtros ativos, usados nos links de paginação para não perdê-los ao trocar de página
+    filtros = {'q': termo} if termo else {}
+
+    return render_template(
+        'index.html',
+        demandas=demandas,
+        pagina=pagina,
+        total_paginas=total_paginas,
+        total=total,
+        filtros=filtros
+    )
 
 
 @app.route('/nova_demanda', methods=['GET', 'POST'])
@@ -94,12 +127,8 @@ def deletar(id):
 
 @app.route('/buscar')
 def buscar():
-    termo = request.args.get('q')
-    conn = sqlite3.connect('demandas.db')
-    cursor = conn.cursor()
-    resultados = cursor.execute(f"SELECT * FROM demandas WHERE titulo LIKE '%{termo}%'").fetchall()
-    conn.close()
-    return render_template('index.html', demandas=resultados)
+    # A busca agora é um filtro da listagem principal (com paginação)
+    return redirect(url_for('index', q=request.args.get('q', '')))
 
 
 # @app.route('/admin')

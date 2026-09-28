@@ -29,9 +29,33 @@
                 <a href="/deletar/{{ demanda[0] }}" style="color:red;">Deletar</a>
             </td>
         </tr>
+        {% else %}
+        <tr>
+            <td colspan="5">Nenhuma demanda encontrada.</td>
+        </tr>
         {% endfor %}
     </tbody>
 </table>
+
+<div class="paginacao">
+    {% if pagina > 1 %}
+        <a href="{{ url_for('index', pagina=pagina - 1, **filtros) }}">&laquo; Anterior</a>
+    {% endif %}
+
+    {% for p in range(1, total_paginas + 1) %}
+        {% if p == pagina %}
+            <strong>{{ p }}</strong>
+        {% else %}
+            <a href="{{ url_for('index', pagina=p, **filtros) }}">{{ p }}</a>
+        {% endif %}
+    {% endfor %}
+
+    {% if pagina < total_paginas %}
+        <a href="{{ url_for('index', pagina=pagina + 1, **filtros) }}">Próxima &raquo;</a>
+    {% endif %}
+
+    <span class="paginacao-info">Página {{ pagina }} de {{ total_paginas }} ({{ total }} demanda{{ 's' if total != 1 }})</span>
+</div>
 
 
 <br><br>

@@ -77,6 +77,18 @@ demandas = [
     ),
 ]
 
+# Demandas extras para testar a paginação (Sprint 3)
+solicitantes_teste = ['João Silva', 'Maria Santos', 'Pedro Costa', 'Ana Lima']
+for i in range(5, 26):
+    demandas.append(
+        (
+            f'Demanda de teste {i}',
+            f'Descrição da demanda de teste {i}',
+            solicitantes_teste[i % len(solicitantes_teste)],
+            f'2024-02-{i:02d} 10:00:00',
+        )
+    )
+
 cursor.executemany(
     '''
 INSERT INTO demandas (titulo, descricao, solicitante, data_criacao)
