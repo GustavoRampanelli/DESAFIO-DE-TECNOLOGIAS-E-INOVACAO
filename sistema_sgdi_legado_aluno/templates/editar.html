@@ -18,8 +18,13 @@
     <br>
     
     <div>
-        <label>Solicitante:</label><br>
-        <input type="text" name="solicitante" value="{{ demanda[3] }}">
+        <label for="solicitante">Solicitante:</label><br>
+        <select name="solicitante_id" id="solicitante" required>
+            <option value="">Selecione o solicitante</option>
+            {% for usuario in usuarios %}
+                <option value="{{ usuario['id'] }}" {{ 'selected' if demanda['solicitante_id'] == usuario['id'] }}>{{ usuario['nome'] }}</option>
+            {% endfor %}
+        </select>
     </div>
     <br>
 

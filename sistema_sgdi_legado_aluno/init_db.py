@@ -15,11 +15,12 @@ CREATE TABLE IF NOT EXISTS demandas (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     titulo TEXT NOT NULL,
     descricao TEXT,
-    solicitante TEXT,
+    solicitante_id INTEGER NOT NULL,
     data_criacao TEXT,
     status TEXT NOT NULL DEFAULT 'Aberta',
     prioridade TEXT NOT NULL DEFAULT 'Média',
     responsavel_id INTEGER,
+    FOREIGN KEY (solicitante_id) REFERENCES usuarios(id),
     FOREIGN KEY (responsavel_id) REFERENCES usuarios(id)
 )
 ''')
@@ -54,11 +55,12 @@ cursor.executemany(
 )
 
 # 4. Inserção de Demandas (deixando o SQLite gerar o ID automático)
+#    solicitante_id e responsavel_id apontam para a tabela usuarios (1 Arthur, 2 Gustavo, 3 Eduardo)
 demandas = [
     (
         'Corrigir bug no login',
         'Usuários não conseguem fazer login',
-        'João Silva',
+        1,
         '2024-01-15 10:30:00',
         'Concluída',
         'Crítica',
@@ -67,7 +69,7 @@ demandas = [
     (
         'Implementar relatório de vendas',
         'Precisamos de um relatório mensal',
-        'Maria Santos',
+        3,
         '2024-01-16 14:20:00',
         'Em andamento',
         'Média',
@@ -76,7 +78,7 @@ demandas = [
     (
         'Melhorar performance',
         'Sistema está lento',
-        'Pedro Costa',
+        2,
         '2024-01-17 09:15:00',
         'Aberta',
         'Alta',
@@ -85,7 +87,7 @@ demandas = [
     (
         'Adicionar filtros',
         'Usuários querem filtrar demandas',
-        'Ana Lima',
+        1,
         '2024-01-18 11:00:00',
         'Aberta',
         'Baixa',
@@ -94,7 +96,8 @@ demandas = [
 ]
 
 # Demandas extras para testar a paginação e os filtros (Sprint 3)
-solicitantes_teste = ['João Silva', 'Maria Santos', 'Pedro Costa', 'Ana Lima']
+# ids da tabela usuarios (1 Arthur, 2 Gustavo, 3 Eduardo); tamanho 7 para variar as combinações com as outras listas
+solicitante_teste = [1, 2, 3, 2, 1, 3, 1]
 status_teste = ['Aberta', 'Em andamento', 'Concluída']
 prioridade_teste = ['Baixa', 'Média', 'Alta', 'Crítica']
 # ids da tabela usuarios (None = sem responsável); tamanho 5 para variar as combinações com as outras listas
@@ -104,7 +107,7 @@ for i in range(5, 26):
         (
             f'Demanda de teste {i}',
             f'Descrição da demanda de teste {i}',
-            solicitantes_teste[i % len(solicitantes_teste)],
+            solicitante_teste[i % len(solicitante_teste)],
             f'2024-02-{i:02d} 10:00:00',
             status_teste[i % len(status_teste)],
             prioridade_teste[i % len(prioridade_teste)],
@@ -114,7 +117,7 @@ for i in range(5, 26):
 
 cursor.executemany(
     '''
-INSERT INTO demandas (titulo, descricao, solicitante, data_criacao, status, prioridade, responsavel_id)
+INSERT INTO demandas (titulo, descricao, solicitante_id, data_criacao, status, prioridade, responsavel_id)
 VALUES (?, ?, ?, ?, ?, ?, ?)
 ''',
     demandas,

@@ -29,12 +29,21 @@ def listar_usuarios(conn):
     return conn.execute('SELECT id, nome FROM usuarios ORDER BY nome').fetchall()
 
 
-def ler_responsavel_id(conn, valor):
-    """Retorna o id do usuário se ele existir; caso contrário None (sem responsável)."""
+def ler_usuario_id(conn, valor):
+    """Retorna o id do usuário se ele existir; caso contrário None."""
     if not valor or not str(valor).isdigit():
         return None
     usuario = conn.execute('SELECT id FROM usuarios WHERE id = ?', (int(valor),)).fetchone()
     return usuario[0] if usuario else None
+
+
+# Demandas com o nome do solicitante e do responsável (LEFT JOIN mantém as demandas sem responsável)
+SELECT_DEMANDAS = '''
+    SELECT d.*, s.nome AS solicitante_nome, r.nome AS responsavel_nome
+    FROM demandas d
+    LEFT JOIN usuarios s ON s.id = d.solicitante_id
+    LEFT JOIN usuarios r ON r.id = d.responsavel_id
+'''
 
 
 @app.route('/')
@@ -72,16 +81,8 @@ def index():
     total_paginas = max(1, math.ceil(total / POR_PAGINA))
     pagina = min(max(pagina, 1), total_paginas)
 
-    # LEFT JOIN para trazer o nome do responsável (e manter as demandas sem responsável)
     demandas = conn.execute(
-        f'''
-        SELECT d.*, u.nome AS responsavel_nome
-        FROM demandas d
-        LEFT JOIN usuarios u ON u.id = d.responsavel_id
-        {where}
-        ORDER BY d.id
-        LIMIT ? OFFSET ?
-        ''',
+        f'{SELECT_DEMANDAS} {where} ORDER BY d.id LIMIT ? OFFSET ?',
         parametros + [POR_PAGINA, (pagina - 1) * POR_PAGINA]
     ).fetchall()
     usuarios = listar_usuarios(conn)
@@ -109,16 +110,20 @@ def nova_demanda():
     if request.method == 'POST':
         titulo = request.form['titulo']
         descricao = request.form['descricao']
-        solicitante_id = request.form['solicitante_id']
+        solicitante_id = ler_usuario_id(conn, request.form.get('solicitante_id'))
+        if solicitante_id is None:
+            conn.close()
+            flash('Selecione um solicitante cadastrado.')
+            return redirect(url_for('nova_demanda'))
         prioridade = request.form.get('prioridade')
         if prioridade not in PRIORIDADE_OPCOES:
             prioridade = PRIORIDADE_PADRAO
-        responsavel_id = ler_responsavel_id(conn, request.form.get('responsavel_id'))
+        responsavel_id = ler_usuario_id(conn, request.form.get('responsavel_id'))
 
         conn.execute(
             '''
             INSERT INTO demandas
-            (titulo, descricao, solicitante, data_criacao, prioridade, responsavel_id)
+            (titulo, descricao, solicitante_id, data_criacao, prioridade, responsavel_id)
             VALUES (?, ?, ?, ?, ?, ?)
             ''',
             (titulo, descricao, solicitante_id, datetime.now(), prioridade, responsavel_id)
@@ -154,22 +159,26 @@ def editar(id):
     if request.method == 'POST':
         titulo = request.form['titulo']
         descricao = request.form['descricao']
-        solicitante = request.form['solicitante']
+        solicitante_id = ler_usuario_id(conn, request.form.get('solicitante_id'))
+        if solicitante_id is None:
+            conn.close()
+            flash('Selecione um solicitante cadastrado.')
+            return redirect(url_for('editar', id=id))
         status = request.form.get('status')
         if status not in STATUS_OPCOES:
             status = STATUS_OPCOES[0]
         prioridade = request.form.get('prioridade')
         if prioridade not in PRIORIDADE_OPCOES:
             prioridade = PRIORIDADE_PADRAO
-        responsavel_id = ler_responsavel_id(conn, request.form.get('responsavel_id'))
+        responsavel_id = ler_usuario_id(conn, request.form.get('responsavel_id'))
 
         cursor.execute(
             '''
             UPDATE demandas
-            SET titulo=?, descricao=?, solicitante=?, status=?, prioridade=?, responsavel_id=?
+            SET titulo=?, descricao=?, solicitante_id=?, status=?, prioridade=?, responsavel_id=?
             WHERE id=?
             ''',
-            (titulo, descricao, solicitante, status, prioridade, responsavel_id, id)
+            (titulo, descricao, solicitante_id, status, prioridade, responsavel_id, id)
         )
         conn.commit()
         conn.close()
@@ -212,15 +221,7 @@ def buscar():
 def detalhes(id):
     conn = get_db()
     cursor = conn.cursor()
-    demanda = cursor.execute(
-        '''
-        SELECT d.*, u.nome AS responsavel_nome
-        FROM demandas d
-        LEFT JOIN usuarios u ON u.id = d.responsavel_id
-        WHERE d.id = ?
-        ''',
-        (id,)
-    ).fetchone()
+    demanda = cursor.execute(f'{SELECT_DEMANDAS} WHERE d.id = ?', (id,)).fetchone()
 
     comentarios = cursor.execute('SELECT * FROM comentarios WHERE demanda_id = ?', (id,)).fetchall()
     conn.close()
