@@ -29,23 +29,20 @@ Sistema completo para gestão, acompanhamento e governança de demandas internas
 ├── sprint 2/                           # Documentação e artefatos de entrega da Sprint
 │   ├── Demanda Sprint 02.pdf
 │   └── quebra-demanda-vinculo-solicitante.md
-├── sistema_sgdi/                       # Aplicação Web SGDI
-│   ├── static/                         # Arquivos estáticos (CSS customizado)
-│   │   └── style.css
-│   ├── templates/                      # Templates Jinja2
-│   │   ├── base.html                   # Layout base com menu e busca rápida
-│   │   ├── index.html                  # Listagem com filtros e paginação
-│   │   ├── nova_demanda.html           # Formulário de criação
-│   │   ├── editar.html                 # Formulário de edição
-│   │   └── detalhes.html               # Visualização detalhada e comentários
-│   ├── app.py                          # Aplicação principal Flask e rotas
-│   ├── init_db.py                      # Script de inicialização do banco SQLite com seed
-│   ├── demandas.db                     # Banco de dados SQLite local
-│   ├── requirements.txt                # Dependências do projeto
-│   ├── Logo SSR.png                    # Identidade visual
-│   └── README.md                       # Documentação da aplicação
+├── static/                             # Arquivos estáticos (CSS customizado)
+│   └── style.css
+├── templates/                          # Templates Jinja2
+│   ├── base.html                       # Layout base com menu e busca rápida
+│   ├── index.html                      # Listagem com filtros e paginação
+│   ├── nova_demanda.html               # Formulário de criação
+│   ├── editar.html                     # Formulário de edição
+│   └── detalhes.html                   # Visualização detalhada e comentários
+├── app.py                              # Aplicação principal Flask e rotas
+├── init_db.py                          # Script de inicialização do banco SQLite com seed
+├── demandas.db                         # Banco de dados SQLite local
+├── requirements.txt                    # Dependências do projeto
 ├── Logo SSR.png                        # Identidade visual
-└── README.md                           # Documentação geral do repositório
+└── README.md                           # Documentação do projeto
 ```
 
 ---
@@ -55,23 +52,18 @@ Sistema completo para gestão, acompanhamento e governança de demandas internas
 ### 1. Pré-requisitos
 - Python 3.10+ instalado.
 
-### 2. Acessar a pasta da aplicação
-```bash
-cd sistema_sgdi
-```
-
-### 3. Instalar Dependências
+### 2. Instalar Dependências
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Inicializar o Banco de Dados
+### 3. Inicializar o Banco de Dados
 Para criar as tabelas e carregar a massa de dados inicial de teste (usuários e demandas):
 ```bash
 python init_db.py
 ```
 
-### 5. Iniciar a Aplicação
+### 4. Iniciar a Aplicação
 ```bash
 python app.py
 ```

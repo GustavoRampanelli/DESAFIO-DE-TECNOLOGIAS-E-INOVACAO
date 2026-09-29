@@ -2,11 +2,13 @@ from datetime import datetime
 import os
 import sqlite3
 
-# 1. Apaga o banco de dados antigo com duplicatas para reiniciar limpo
-if os.path.exists('demandas.db'):
-  os.remove('demandas.db')
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'demandas.db')
 
-conn = sqlite3.connect('demandas.db')
+# 1. Apaga o banco de dados antigo com duplicatas para reiniciar limpo
+if os.path.exists(DB_PATH):
+  os.remove(DB_PATH)
+
+conn = sqlite3.connect(DB_PATH)
 cursor = conn.cursor()
 
 # 2. Criação das tabelas com PRIMARY KEY AUTOINCREMENT

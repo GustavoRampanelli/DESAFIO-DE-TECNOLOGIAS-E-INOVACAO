@@ -1,14 +1,17 @@
-from flask import Flask, render_template, request, redirect, url_for, flash
+import os
 import math
 import sqlite3
 from datetime import datetime
+from flask import Flask, render_template, request, redirect, url_for, flash
 
 app = Flask(__name__)
 app.secret_key = '123456'
 
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'demandas.db')
+
 
 def get_db():
-    conn = sqlite3.connect('demandas.db')
+    conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -104,8 +107,7 @@ def index():
 
 @app.route('/nova_demanda', methods=['GET', 'POST'])
 def nova_demanda():
-    conn = sqlite3.connect('demandas.db')
-    conn.row_factory = sqlite3.Row
+    conn = get_db()
 
     if request.method == 'POST':
         titulo = request.form['titulo']
@@ -198,9 +200,9 @@ def editar(id):
 
 @app.route('/deletar/<id>')
 def deletar(id):
-    conn = sqlite3.connect('demandas.db')
+    conn = get_db()
     cursor = conn.cursor()
-    cursor.execute(f'DELETE FROM demandas WHERE id={id}')
+    cursor.execute('DELETE FROM demandas WHERE id = ?', (id,))
     conn.commit()
     conn.close()
     flash('Deletado!')
@@ -234,10 +236,12 @@ def adicionar_comentario(demanda_id):
     comentario = request.form['comentario']
     autor = request.form['autor']
 
-    conn = sqlite3.connect('demandas.db')
+    conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
-        f"INSERT INTO comentarios (demanda_id, comentario, autor, data) VALUES ({demanda_id}, '{comentario}', '{autor}', '{datetime.now()}')")
+        'INSERT INTO comentarios (demanda_id, comentario, autor, data) VALUES (?, ?, ?, ?)',
+        (demanda_id, comentario, autor, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    )
     conn.commit()
     conn.close()
 
