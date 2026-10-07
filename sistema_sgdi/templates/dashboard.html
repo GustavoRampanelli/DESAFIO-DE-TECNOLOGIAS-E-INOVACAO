@@ -1,0 +1,899 @@
+{% extends "base.html" %}
+
+{% block title %}Painel Analytics - SGDI{% endblock %}
+
+{% block content %}
+<!-- Cabeçalho de Impressão (visível apenas ao imprimir/PDF navegador) -->
+<div class="print-only-header">
+    <h1 style="font-size: 1.4rem; margin-bottom: 2px;">SGDI - Sistema de Gestão de Demandas Internas</h1>
+    <h2 style="font-size: 1rem; color: #475569; font-weight: normal; margin-bottom: 5px;">SSR - Gestão & Governança | Relatório Analítico de Demandas e SLA</h2>
+    <div style="font-size: 0.8rem; color: #64748b;">
+        Gerado em: {{ metricas.timestamp_geracao }} | Filtros: {{ metricas.texto_filtros }}
+    </div>
+</div>
+
+<!-- Topo do Painel Analytics -->
+<div class="dashboard-hero">
+    <div class="dashboard-hero-title">
+        <h1><span>📊</span> Painel Geral de Analytics</h1>
+        <p>Visão consolidada em tempo real sobre demandas, cumprimento de SLA e performance da equipe</p>
+    </div>
+    <div class="dashboard-hero-actions">
+        <!-- Grupo de Exportação -->
+        <div class="export-group" id="grupo-exportacao">
+            <a href="/exportar/pdf" class="btn-export pdf" id="btn-export-pdf" title="Exportar relatório em PDF com cabeçalho institucional e rodapé">
+                <span>📄</span> PDF
+            </a>
+            <a href="/exportar/excel" class="btn-export excel" id="btn-export-excel" title="Exportar planilha Excel (.xlsx) com abas e fórmulas">
+                <span>📊</span> Excel
+            </a>
+            <a href="/exportar/csv" class="btn-export csv" id="btn-export-csv" title="Exportar arquivo CSV com codificação UTF-8 BOM">
+                <span>📑</span> CSV
+            </a>
+            <button type="button" class="btn-export" onclick="window.print()" title="Imprimir ou Salvar em PDF pelo navegador">
+                <span>🖨️</span> Imprimir
+            </button>
+        </div>
+
+        <a href="/criticas-atrasadas" class="btn btn-danger" id="btn-hero-criticas" title="Ver War Room de demandas críticas e em atraso">
+            <span>🚨</span> Críticas & Atrasadas ({{ metricas.total_fora_sla }})
+        </a>
+        <a href="/demandas" class="btn btn-secondary" id="btn-ver-todas">
+            <span>📋</span> Ver Demandas
+        </a>
+        <a href="/nova_demanda" class="btn btn-primary" id="btn-hero-nova">
+            <span>+</span> Nova Demanda
+        </a>
+    </div>
+</div>
+
+<!-- Barra de Filtros Dinâmicos -->
+<div class="filtros-box" style="margin-bottom: 1.75rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.85rem; flex-wrap: wrap; gap: 0.5rem;">
+        <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; font-weight: 700; color: var(--text-main);">
+            <span>⚡ Filtros de Visualização Dinâmica</span>
+            <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-muted); display: inline-flex; align-items: center; gap: 0.35rem;">
+                <span class="pulse-sync"></span> Atualização em tempo real
+            </span>
+        </div>
+        <div style="font-size: 0.8rem; color: var(--text-muted);">
+            Empresa: <strong>SGDI / SSR</strong>
+        </div>
+    </div>
+
+    <form method="GET" action="/" class="filtros-form" id="form-filtros-dashboard">
+        <!-- Filtro por Período -->
+        <div class="filter-group">
+            <label for="filtro-periodo">Período:</label>
+            <select name="periodo" id="filtro-periodo" class="filtro-dinamico">
+                <option value="todos" {{ 'selected' if filtros.get('periodo', 'todos') == 'todos' }}>Todo o histórico</option>
+                <option value="7d" {{ 'selected' if filtros.get('periodo') == '7d' }}>Últimos 7 dias</option>
+                <option value="30d" {{ 'selected' if filtros.get('periodo') == '30d' }}>Últimos 30 dias</option>
+                <option value="90d" {{ 'selected' if filtros.get('periodo') == '90d' }}>Últimos 90 dias</option>
+                <option value="custom" {{ 'selected' if filtros.get('periodo') == 'custom' }}>Personalizado...</option>
+            </select>
+        </div>
+
+        <!-- Campos de Data Personalizada (ocultos se não selecionado custom) -->
+        <div class="filter-group" id="box-data-inicio" style="display: {{ 'block' if filtros.get('periodo') == 'custom' else 'none' }};">
+            <label for="filtro-data-inicio">Data Início:</label>
+            <input type="date" name="data_inicio" id="filtro-data-inicio" class="filtro-dinamico" value="{{ filtros.get('data_inicio', '') }}">
+        </div>
+
+        <div class="filter-group" id="box-data-fim" style="display: {{ 'block' if filtros.get('periodo') == 'custom' else 'none' }};">
+            <label for="filtro-data-fim">Data Fim:</label>
+            <input type="date" name="data_fim" id="filtro-data-fim" class="filtro-dinamico" value="{{ filtros.get('data_fim', '') }}">
+        </div>
+
+        <!-- Filtro por Responsável -->
+        <div class="filter-group">
+            <label for="filtro-responsavel">Responsável:</label>
+            <select name="responsavel" id="filtro-responsavel" class="filtro-dinamico">
+                <option value="">Todos os responsáveis</option>
+                {% for u in usuarios %}
+                    <option value="{{ u['id'] }}" {{ 'selected' if filtros.get('responsavel') == (u['id']|string) }}>{{ u['nome'] }}</option>
+                {% endfor %}
+                <option value="sem_responsavel" {{ 'selected' if filtros.get('responsavel') == 'sem_responsavel' }}>Sem responsável (Fora do SLA)</option>
+            </select>
+        </div>
+
+        <!-- Filtro por Prioridade -->
+        <div class="filter-group">
+            <label for="filtro-prioridade">Prioridade:</label>
+            <select name="prioridade" id="filtro-prioridade" class="filtro-dinamico">
+                <option value="">Todas as prioridades</option>
+                {% for opcao in prioridade_opcoes %}
+                    <option value="{{ opcao }}" {{ 'selected' if filtros.get('prioridade') == opcao }}>
+                        {{ opcao }} (Peso {{ 4 if opcao == 'Crítica' else (3 if opcao == 'Alta' else (2 if opcao == 'Média' else 1)) }}x)
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Filtro por Status -->
+        <div class="filter-group">
+            <label for="filtro-status">Status:</label>
+            <select name="status" id="filtro-status" class="filtro-dinamico">
+                <option value="">Todos os status</option>
+                {% for opcao in status_opcoes %}
+                    <option value="{{ opcao }}" {{ 'selected' if filtros.get('status') == opcao }}>
+                        {{ opcao }} {% if opcao == 'Cancelada' %}(Excluída do SLA){% endif %}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Ações do Filtro -->
+        <div class="filtros-actions">
+            <button type="submit" class="btn btn-primary btn-sm" id="btn-aplicar-filtros-dash">Filtrar</button>
+            <a href="/" class="btn btn-secondary btn-sm" id="btn-limpar-filtros-dash">Limpar</a>
+        </div>
+    </form>
+</div>
+
+<!-- Grid de KPIs Principais (Top Stats) -->
+<div class="kpi-grid">
+    <!-- Total de Demandas -->
+    <div class="kpi-card indigo" id="card-total-demandas">
+        <div class="kpi-card-header">
+            <span class="kpi-title">Total de Demandas</span>
+            <div class="kpi-icon">📁</div>
+        </div>
+        <div>
+            <div class="kpi-value" id="val-total-demandas">{{ metricas.total_demandas }}</div>
+            <div class="kpi-desc" id="desc-total-demandas">Base filtrada atual</div>
+        </div>
+        <a href="/demandas" class="kpi-link">Ver todas as demandas &rarr;</a>
+    </div>
+
+    <!-- Demandas Abertas -->
+    <div class="kpi-card blue" id="card-abertas">
+        <div class="kpi-card-header">
+            <span class="kpi-title">Demandas Abertas</span>
+            <div class="kpi-icon">📬</div>
+        </div>
+        <div>
+            <div class="kpi-value" id="val-abertas">{{ metricas.total_abertas }}</div>
+            <div class="kpi-desc">
+                <span class="badge badge-status-aberta" id="badge-pct-abertas">{{ metricas.pct_abertas }}%</span> aguardando início
+            </div>
+        </div>
+        <a href="/demandas?status=Aberta" class="kpi-link">Filtrar abertas &rarr;</a>
+    </div>
+
+    <!-- Em Andamento -->
+    <div class="kpi-card amber" id="card-em-andamento">
+        <div class="kpi-card-header">
+            <span class="kpi-title">Em Andamento</span>
+            <div class="kpi-icon">⚡</div>
+        </div>
+        <div>
+            <div class="kpi-value" id="val-em-andamento">{{ metricas.total_em_andamento }}</div>
+            <div class="kpi-desc">
+                <span class="badge badge-status-em-andamento" id="badge-pct-andamento">{{ metricas.pct_em_andamento }}%</span> em atendimento
+            </div>
+        </div>
+        <a href="/demandas?status=Em+andamento" class="kpi-link">Filtrar em andamento &rarr;</a>
+    </div>
+
+    <!-- Concluídas -->
+    <div class="kpi-card emerald" id="card-concluidas">
+        <div class="kpi-card-header">
+            <span class="kpi-title">Concluídas</span>
+            <div class="kpi-icon">✅</div>
+        </div>
+        <div>
+            <div class="kpi-value" id="val-concluidas">{{ metricas.total_concluidas }}</div>
+            <div class="kpi-desc">
+                <span class="badge badge-status-concluida" id="badge-pct-concluidas">{{ metricas.pct_concluidas }}%</span> resolvidas
+            </div>
+        </div>
+        <a href="/demandas?status=Concluída" class="kpi-link">Filtrar concluídas &rarr;</a>
+    </div>
+
+    <!-- Canceladas (Fora do Tempo Médio) -->
+    <div class="kpi-card" style="border-left: 4px solid #94a3b8;" id="card-canceladas">
+        <div class="kpi-card-header">
+            <span class="kpi-title">Canceladas</span>
+            <div class="kpi-icon" style="background:#f1f5f9; color:#64748b;">🚫</div>
+        </div>
+        <div>
+            <div class="kpi-value" style="color:#64748b;" id="val-canceladas">{{ metricas.total_canceladas }}</div>
+            <div class="kpi-desc">
+                <span class="badge badge-status-cancelada" id="badge-pct-canceladas">{{ metricas.pct_canceladas }}%</span> fora do tempo médio
+            </div>
+        </div>
+        <a href="/demandas?status=Cancelada" class="kpi-link" style="color:#64748b;">Filtrar canceladas &rarr;</a>
+    </div>
+
+    <!-- Demandas Atrasadas / Fora do SLA (EM VERMELHO RIGOROSO) -->
+    <div class="kpi-card rose" id="card-atrasadas" style="border-color: #fca5a5; background: #fffdfd;">
+        <div class="kpi-card-header">
+            <span class="kpi-title" style="color:#b91c1c; font-weight:700;">FORA DO SLA (VERMELHO)</span>
+            <div class="kpi-icon" style="background:#fee2e2; color:#dc2626;">🚨</div>
+        </div>
+        <div>
+            <div class="kpi-value" style="color:#dc2626;" id="val-atrasadas">{{ metricas.total_fora_sla }}</div>
+            <div class="kpi-desc">
+                <span class="badge badge-sla-atrasada" id="badge-taxa-atraso">{{ metricas.taxa_fora_sla_ativas }}%</span> das ativas fora do SLA
+            </div>
+            <div style="font-size:0.75rem; color:#991b1b; margin-top:0.35rem;" id="detalhe-fora-sla">
+                ({{ metricas.total_atrasadas_prazo }} prazo estourado + {{ metricas.total_sem_resp_fora_sla }} sem resp.)
+            </div>
+        </div>
+        <a href="/demandas?prazo=atrasadas" class="kpi-link text-danger">Ver demandas fora do SLA &rarr;</a>
+    </div>
+
+    <!-- Tempo Médio de Resolução (Canceladas excluídas) -->
+    <div class="kpi-card purple" id="card-tempo-medio">
+        <div class="kpi-card-header">
+            <span class="kpi-title">Tempo Médio Resolução</span>
+            <div class="kpi-icon">⏱️</div>
+        </div>
+        <div>
+            <div class="kpi-value" id="val-tempo-medio">{{ metricas.tempo_medio_formatado }}</div>
+            <div class="kpi-desc">
+                Média de <span id="val-concluidas-tempo">{{ metricas.total_concluidas_com_tempo }}</span> concluídas (canceladas excluídas)
+            </div>
+        </div>
+        <span class="kpi-link" style="color:var(--purple); cursor:default;">
+            SLA Global: <strong id="val-sla-global">{{ metricas.taxa_sla_geral }}%</strong> no prazo
+        </span>
+    </div>
+
+    <!-- Índice de Severidade Ponderada do Backlog (Críticos pesam mais) -->
+    <div class="kpi-card" style="border-left: 4px solid #ea580c;" id="card-severidade">
+        <div class="kpi-card-header">
+            <span class="kpi-title">Severidade do Backlog</span>
+            <div class="kpi-icon" style="background:#fff7ed; color:#ea580c;">⚖️</div>
+        </div>
+        <div>
+            <div class="kpi-value" style="color:#ea580c;" id="val-score-severidade">{{ metricas.score_severidade }} <span style="font-size:1.1rem; color:var(--text-muted); font-weight:600;">/ 4.0</span></div>
+            <div class="kpi-desc">
+                <span class="score-badge {{ 'alta' if metricas.score_severidade >= 3.0 else ('moderada' if metricas.score_severidade >= 2.0 else 'baixa') }}" id="badge-severidade-desc">
+                    {{ metricas.severidade_classificacao }}
+                </span>
+            </div>
+        </div>
+        <span class="kpi-link" style="color:#c2410c; cursor:default;">
+            Crítico(4x) &bull; Alta(3x) &bull; Média(2x) &bull; Baixa(1x)
+        </span>
+    </div>
+</div>
+
+<!-- Grid de Gráficos (Visual Analytics com Chart.js) -->
+<div class="charts-grid" style="grid-template-columns: repeat(2, 1fr);">
+    <!-- Gráfico 1: Evolução Temporal de Demandas (Criação vs Conclusão) -->
+    <div class="chart-card" style="grid-column: span 2;">
+        <div class="chart-header">
+            <div class="chart-header-text">
+                <h3>📈 Evolução Temporal de Demandas</h3>
+                <p>Volume de demandas abertas e concluídas ao longo do tempo (série histórica)</p>
+            </div>
+            <span class="badge badge-sla-ok">Timeline Dinâmica</span>
+        </div>
+        <div class="chart-container" style="min-height: 280px; max-height: 320px;">
+            <canvas id="chartEvolucaoTemporal"></canvas>
+        </div>
+    </div>
+
+    <!-- Gráfico 2: Distribuição por Status -->
+    <div class="chart-card">
+        <div class="chart-header">
+            <div class="chart-header-text">
+                <h3>Distribuição por Status</h3>
+                <p>Ciclo de vida geral (incluindo Canceladas fora do SLA)</p>
+            </div>
+            <span class="badge badge-sla-ok" id="badge-total-status">{{ metricas.total_demandas }} Total</span>
+        </div>
+        <div class="chart-container">
+            <canvas id="chartStatus"></canvas>
+        </div>
+    </div>
+
+    <!-- Gráfico 3: Demandas por Prioridade & Criticidade -->
+    <div class="chart-card">
+        <div class="chart-header">
+            <div class="chart-header-text">
+                <h3>Volume por Prioridade & Fora do SLA</h3>
+                <p>Critérios ponderados (Crítica = Peso 4, Alta = 3, Média = 2, Baixa = 1)</p>
+            </div>
+            <span class="badge badge-prio-alta">Ponderado</span>
+        </div>
+        <div class="chart-container">
+            <canvas id="chartPrioridades"></canvas>
+        </div>
+    </div>
+
+    <!-- Gráfico 4: Demandas por Responsável -->
+    <div class="chart-card">
+        <div class="chart-header">
+            <div class="chart-header-text">
+                <h3>Demandas por Responsável</h3>
+                <p>Demandas concluídas, ativas e fora do SLA (em vermelho)</p>
+            </div>
+            <span class="badge badge-status-em-andamento">{{ metricas.usuarios_stats|length }} Membros</span>
+        </div>
+        <div class="chart-container">
+            <canvas id="chartResponsaveis"></canvas>
+        </div>
+    </div>
+
+    <!-- Gráfico 5: Tempo Médio Real vs Meta SLA (Dias) -->
+    <div class="chart-card">
+        <div class="chart-header">
+            <div class="chart-header-text">
+                <h3>Tempo Médio Real vs Meta SLA (Dias)</h3>
+                <p>Comparativo por criticidade (demandas canceladas não são contabilizadas)</p>
+            </div>
+            <span class="badge badge-sla-ok" id="badge-tempo-global">{{ metricas.tempo_medio_formatado }} Global</span>
+        </div>
+        <div class="chart-container">
+            <canvas id="chartTempoResolucao"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Tabela Analítica de Performance por Responsável -->
+<div class="section-card" id="secao-responsaveis">
+    <div class="section-card-header">
+        <div>
+            <h2><span>👥</span> Desempenho e Distribuição por Responsável</h2>
+            <p>Acompanhamento de alocação, taxa de entrega, tempo de resolução e carga ponderada</p>
+        </div>
+        <span class="badge badge-status-concluida" id="badge-total-concluidas">{{ metricas.total_concluidas }} Concluídas</span>
+    </div>
+
+    <div class="table-responsive">
+        <table class="data-table" id="tabela-responsaveis">
+            <thead>
+                <tr>
+                    <th>Responsável</th>
+                    <th>Total Atribuído</th>
+                    <th>Abertas</th>
+                    <th>Em Andamento</th>
+                    <th>Concluídas</th>
+                    <th>Canceladas</th>
+                    <th style="color:var(--danger);">Fora do SLA</th>
+                    <th>Carga Ponderada</th>
+                    <th>Taxa Conclusão</th>
+                    <th>Tempo Médio</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody id="tbody-responsaveis">
+                {% for u in metricas.usuarios_stats %}
+                <tr class="{% if u.id is none and u.total > 0 %}bg-danger-light{% endif %}">
+                    <td>
+                        <div class="user-cell">
+                            <div class="avatar" style="{% if u.id is none %}background:#ef4444;{% endif %}">{{ u.iniciais }}</div>
+                            <div class="user-info">
+                                <div class="user-name">
+                                    {{ u.nome }}
+                                    {% if u.id is none %}
+                                        <span class="badge badge-sla-atrasada" style="font-size:0.65rem; padding:1px 5px;">SEM RESP = FORA DO SLA</span>
+                                    {% endif %}
+                                </div>
+                                <div class="user-email">{{ u.email }}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td><strong>{{ u.total }}</strong></td>
+                    <td><span class="badge badge-status-aberta">{{ u.abertas }}</span></td>
+                    <td><span class="badge badge-status-em-andamento">{{ u.em_andamento }}</span></td>
+                    <td><span class="badge badge-status-concluida">{{ u.concluidas }}</span></td>
+                    <td><span class="badge badge-status-cancelada">{{ u.canceladas }}</span></td>
+                    <td>
+                        {% if u.fora_sla > 0 %}
+                            <span class="badge badge-sla-atrasada">⚠️ {{ u.fora_sla }}</span>
+                        {% else %}
+                            <span class="badge badge-sla-ok">0</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="badge-peso">{{ u.pontos_criticidade }} pts</span>
+                    </td>
+                    <td>
+                        <div class="progress-bar-wrapper">
+                            <div class="progress-bar-bg">
+                                <div class="progress-bar-fill" style="width: {{ u.taxa_conclusao }}%;"></div>
+                            </div>
+                            <span class="progress-bar-label">{{ u.taxa_conclusao }}%</span>
+                        </div>
+                    </td>
+                    <td>
+                        <strong style="color:var(--primary);">{{ u.tempo_medio_formatado }}</strong>
+                    </td>
+                    <td>
+                        {% if u.id is not none %}
+                            <a href="/demandas?responsavel={{ u.id }}" class="btn btn-secondary btn-sm" title="Filtrar demandas deste responsável">
+                                Ver &rarr;
+                            </a>
+                        {% else %}
+                            <a href="/demandas?responsavel=sem_responsavel" class="btn btn-danger btn-sm" title="Filtrar demandas sem responsável">
+                                Atribuir &rarr;
+                            </a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Seção de Governança de SLA & Resolução -->
+<div class="section-card">
+    <div class="section-card-header">
+        <div>
+            <h2><span>🎯</span> Diretrizes de SLA, Pesos de Criticidade e Resolução</h2>
+            <p>Prazos máximos tolerados, pesos no backlog e tempos reais médios apurados</p>
+        </div>
+        <div style="font-size:0.8rem; color:var(--text-muted);">
+            Regra: <strong>Sem Responsável = Fora do SLA</strong> | <strong>Canceladas = Fora do Tempo Médio</strong>
+        </div>
+    </div>
+
+    <div class="sla-grid">
+        {% for p in metricas.prioridade_stats %}
+        <div class="sla-card {{ p.prioridade|lower }}">
+            <div class="sla-card-header">
+                <strong>Prioridade {{ p.prioridade }}</strong>
+                <span class="sla-badge-meta">SLA: {{ p.sla_dias }} dias (Peso {{ p.peso }}x)</span>
+            </div>
+            <div class="sla-stat-row">
+                <span class="label">Total cadastradas:</span>
+                <span class="val">{{ p.total }}</span>
+            </div>
+            <div class="sla-stat-row">
+                <span class="label">Concluídas:</span>
+                <span class="val" style="color:var(--success);">{{ p.concluidas }}</span>
+            </div>
+            <div class="sla-stat-row">
+                <span class="label">Canceladas:</span>
+                <span class="val" style="color:var(--text-muted);">{{ p.canceladas }}</span>
+            </div>
+            <div class="sla-stat-row">
+                <span class="label">Fora do SLA:</span>
+                <span class="val text-danger" style="{% if p.fora_sla > 0 %}color:var(--danger); font-weight:800;{% endif %}">{{ p.fora_sla }}</span>
+            </div>
+            <div class="sla-stat-row" style="border-top: 1px dashed var(--border); padding-top: 0.5rem; margin-top: 0.25rem;">
+                <span class="label">Tempo Médio Real:</span>
+                <span class="val" style="color:var(--primary);">{{ p.tempo_medio_formatado }}</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Destaques Rápidos -->
+    {% if metricas.demanda_mais_rapida %}
+    <div style="background:#f8fafc; border-top:1px solid var(--border); padding:1rem 1.5rem; display:flex; flex-wrap:wrap; gap:1.5rem; justify-content:space-between; align-items:center;">
+        <div style="display:flex; align-items:center; gap:0.6rem;">
+            <span style="font-size:1.5rem;">⚡</span>
+            <div>
+                <div style="font-size:0.8rem; color:var(--text-muted); font-weight:600;">RESOLUÇÃO MAIS RÁPIDA</div>
+                <div style="font-size:0.9rem; font-weight:700;">#{{ metricas.demanda_mais_rapida.id }} - {{ metricas.demanda_mais_rapida.titulo }} ({{ metricas.demanda_mais_rapida.tempo_formatado }})</div>
+            </div>
+        </div>
+        <a href="/detalhes/{{ metricas.demanda_mais_rapida.id }}" class="btn btn-secondary btn-sm">Ver Detalhes</a>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Demandas que Requerem Atenção (Atrasadas / Sem Responsável / Críticas) -->
+{% if metricas.demandas_atencao %}
+<div class="section-card" id="secao-demandas-atencao">
+    <div class="section-card-header">
+        <div>
+            <h2><span style="color:#dc2626;">🚨</span> Demandas que Requerem Atenção Imediata</h2>
+            <p>Demandas ativas fora do SLA (prazo estourado ou sem responsável) e com prazo próximo</p>
+        </div>
+        <span class="badge badge-sla-atrasada" id="badge-atencao-count">{{ metricas.demandas_atencao|length }} Itens</span>
+    </div>
+
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Título</th>
+                    <th>Prioridade</th>
+                    <th>Responsável</th>
+                    <th>Status Atual</th>
+                    <th>Situação / Motivo</th>
+                    <th>Ação</th>
+                </tr>
+            </thead>
+            <tbody id="tbody-demandas-atencao">
+                {% for item in metricas.demandas_atencao %}
+                <tr>
+                    <td><strong>#{{ item.id }}</strong></td>
+                    <td>
+                        <a href="/detalhes/{{ item.id }}" style="font-weight:600; color:var(--primary); text-decoration:none;">
+                            {{ item.titulo }}
+                        </a>
+                    </td>
+                    <td>
+                        <span class="badge badge-prio-{{ item.prioridade|lower }}">
+                            {{ item.prioridade }} ({{ item.peso }}x)
+                        </span>
+                    </td>
+                    <td>
+                        {% if item.sem_responsavel %}
+                            <strong style="color:var(--danger);">Não atribuído ⚠️</strong>
+                        {% else %}
+                            {{ item.responsavel_nome }}
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="badge badge-status-{{ item.status|lower|replace(' ', '-') }}">{{ item.status }}</span>
+                    </td>
+                    <td>
+                        {% if item.atrasada %}
+                            <span class="badge badge-sla-atrasada">⚠️ {{ item.motivo }}</span>
+                        {% else %}
+                            <span class="badge badge-sla-aviso">⏳ {{ item.motivo }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="/detalhes/{{ item.id }}" class="btn btn-secondary btn-sm">Ver</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Rodapé com Metadados e Filtros Aplicados -->
+<div class="print-only-footer" style="margin-top: 2rem; padding: 1rem 0; border-top: 1px solid var(--border); font-size: 0.825rem; color: var(--text-muted); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
+    <div id="footer-texto-filtros">
+        <strong>Filtros aplicados:</strong> {{ metricas.texto_filtros }}
+    </div>
+    <div id="footer-timestamp">
+        <strong>Relatório gerado em:</strong> {{ metricas.timestamp_geracao }}
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Configurações globais do Chart.js para o tema Obsidian
+    Chart.defaults.font.family = "'Inter', -apple-system, sans-serif";
+    Chart.defaults.color = '#8e8e99';
+    Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.07)';
+
+    let chartEvolucaoInstance = null;
+    let chartStatusInstance = null;
+    let chartPrioInstance = null;
+    let chartRespInstance = null;
+    let chartTempoInstance = null;
+
+    // Inicialização dos Gráficos
+    function inicializarGraficos(m) {
+        // 1. Gráfico de Evolução Temporal
+        const ctxEvolucao = document.getElementById('chartEvolucaoTemporal');
+        if (ctxEvolucao) {
+            if (chartEvolucaoInstance) chartEvolucaoInstance.destroy();
+            chartEvolucaoInstance = new Chart(ctxEvolucao, {
+                type: 'line',
+                data: {
+                    labels: m.evolucao_temporal.labels,
+                    datasets: [
+                        {
+                            label: 'Demandas Criadas',
+                            data: m.evolucao_temporal.criadas,
+                            borderColor: '#a78bfa',
+                            backgroundColor: 'rgba(167, 139, 250, 0.15)',
+                            tension: 0.35,
+                            fill: true,
+                            pointRadius: 4,
+                            pointHoverRadius: 6
+                        },
+                        {
+                            label: 'Demandas Concluídas',
+                            data: m.evolucao_temporal.concluidas,
+                            borderColor: '#34d399',
+                            backgroundColor: 'rgba(52, 211, 153, 0.12)',
+                            tension: 0.35,
+                            fill: true,
+                            pointRadius: 4,
+                            pointHoverRadius: 6
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, ticks: { precision: 0 } }
+                    },
+                    plugins: {
+                        legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12 } }
+                    }
+                }
+            });
+        }
+
+        // 2. Gráfico de Rosca: Status (com Canceladas)
+        const ctxStatus = document.getElementById('chartStatus');
+        if (ctxStatus) {
+            if (chartStatusInstance) chartStatusInstance.destroy();
+            chartStatusInstance = new Chart(ctxStatus, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Abertas', 'Em andamento', 'Concluídas', 'Canceladas'],
+                    datasets: [{
+                        data: [
+                            m.total_abertas,
+                            m.total_em_andamento,
+                            m.total_concluidas,
+                            m.total_canceladas
+                        ],
+                        backgroundColor: ['#38bdf8', '#fbbf24', '#34d399', '#64748b'],
+                        borderWidth: 2,
+                        borderColor: '#1b1b1e',
+                        hoverOffset: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { boxWidth: 12, padding: 12, font: { size: 12, weight: '600' } }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const total = m.total_demandas;
+                                    const val = context.raw;
+                                    const pct = total > 0 ? ((val / total) * 100).toFixed(1) : 0;
+                                    return ` ${context.label}: ${val} (${pct}%)`;
+                                }
+                            }
+                        }
+                    },
+                    cutout: '68%'
+                }
+            });
+        }
+
+        // 3. Gráfico de Barras: Prioridades & Fora do SLA (Vermelho)
+        const ctxPrio = document.getElementById('chartPrioridades');
+        if (ctxPrio) {
+            if (chartPrioInstance) chartPrioInstance.destroy();
+            const prioLabels = m.prioridade_stats.map(p => `${p.prioridade} (${p.peso}x)`);
+            const prioTotais = m.prioridade_stats.map(p => p.total);
+            const prioForaSla = m.prioridade_stats.map(p => p.fora_sla);
+
+            chartPrioInstance = new Chart(ctxPrio, {
+                type: 'bar',
+                data: {
+                    labels: prioLabels,
+                    datasets: [
+                        {
+                            label: 'Total de Demandas',
+                            data: prioTotais,
+                            backgroundColor: '#6366f1',
+                            borderRadius: 6
+                        },
+                        {
+                            label: 'Fora do SLA (Atrasadas)',
+                            data: prioForaSla,
+                            backgroundColor: '#ef4444',
+                            borderRadius: 6
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, ticks: { precision: 0 } }
+                    },
+                    plugins: {
+                        legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12 } }
+                    }
+                }
+            });
+        }
+
+        // 4. Gráfico de Barras: Demandas por Responsável
+        const ctxResp = document.getElementById('chartResponsaveis');
+        if (ctxResp) {
+            if (chartRespInstance) chartRespInstance.destroy();
+            const respNomes = m.usuarios_stats.map(u => u.nome.length > 16 ? u.nome.substring(0, 16) + '...' : u.nome);
+            const respConcluidas = m.usuarios_stats.map(u => u.concluidas);
+            const respAndamento = m.usuarios_stats.map(u => u.em_andamento);
+            const respAbertas = m.usuarios_stats.map(u => u.abertas);
+            const respForaSla = m.usuarios_stats.map(u => u.fora_sla);
+
+            chartRespInstance = new Chart(ctxResp, {
+                type: 'bar',
+                data: {
+                    labels: respNomes,
+                    datasets: [
+                        { label: 'Concluídas', data: respConcluidas, backgroundColor: '#10b981', borderRadius: 4 },
+                        { label: 'Em andamento', data: respAndamento, backgroundColor: '#f59e0b', borderRadius: 4 },
+                        { label: 'Abertas', data: respAbertas, backgroundColor: '#3b82f6', borderRadius: 4 },
+                        { label: 'Fora do SLA', data: respForaSla, backgroundColor: '#ef4444', borderRadius: 4 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { stacked: true, grid: { display: false } },
+                        y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } }
+                    },
+                    plugins: {
+                        legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12 } }
+                    }
+                }
+            });
+        }
+
+        // 5. Gráfico Horizontal: Tempo Médio vs Meta SLA
+        const ctxTempo = document.getElementById('chartTempoResolucao');
+        if (ctxTempo) {
+            if (chartTempoInstance) chartTempoInstance.destroy();
+            const pLabels = m.prioridade_stats.map(p => `${p.prioridade}`);
+            const pSLAs = m.prioridade_stats.map(p => p.sla_dias);
+            const pTemposReais = m.prioridade_stats.map(p => p.tempo_medio_dias === null ? 0 : p.tempo_medio_dias);
+
+            chartTempoInstance = new Chart(ctxTempo, {
+                type: 'bar',
+                data: {
+                    labels: pLabels,
+                    datasets: [
+                        { label: 'Tempo Médio Real (dias)', data: pTemposReais, backgroundColor: '#a78bfa', borderRadius: 4 },
+                        { label: 'Meta SLA Máxima (dias)', data: pSLAs, backgroundColor: 'rgba(255, 255, 255, 0.12)', borderRadius: 4 }
+                    ]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { beginAtZero: true, title: { display: true, text: 'Dias' } }
+                    },
+                    plugins: {
+                        legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12 } }
+                    }
+                }
+            });
+        }
+    }
+
+    // Inicializa gráficos com os dados pré-carregados pelo Jinja
+    const dadosIniciais = {{ metricas | tojson }};
+    inicializarGraficos(dadosIniciais);
+
+    // =================================================================
+    // ATUALIZAÇÃO DINÂMICA VIA FETCH E API
+    // =================================================================
+    const formFiltros = document.getElementById('form-filtros-dashboard');
+    const selectPeriodo = document.getElementById('filtro-periodo');
+    const boxDataInicio = document.getElementById('box-data-inicio');
+    const boxDataFim = document.getElementById('box-data-fim');
+
+    // Alterna visibilidade dos inputs de data customizada
+    if (selectPeriodo) {
+        selectPeriodo.addEventListener('change', function() {
+            if (this.value === 'custom') {
+                boxDataInicio.style.display = 'block';
+                boxDataFim.style.display = 'block';
+            } else {
+                boxDataInicio.style.display = 'none';
+                boxDataFim.style.display = 'none';
+            }
+        });
+    }
+
+    function atualizarLinksExportacao(queryString) {
+        const btnPdf = document.getElementById('btn-export-pdf');
+        const btnExcel = document.getElementById('btn-export-excel');
+        const btnCsv = document.getElementById('btn-export-csv');
+        if (btnPdf) btnPdf.href = '/exportar/pdf?' + queryString;
+        if (btnExcel) btnExcel.href = '/exportar/excel?' + queryString;
+        if (btnCsv) btnCsv.href = '/exportar/csv?' + queryString;
+    }
+
+    function executarAtualizacaoDinamica() {
+        const formData = new FormData(formFiltros);
+        const params = new URLSearchParams();
+
+        for (const [key, value] of formData.entries()) {
+            if (value && value.trim() !== '') {
+                params.append(key, value.trim());
+            }
+        }
+
+        const queryString = params.toString();
+        atualizarLinksExportacao(queryString);
+
+        // Chamada assíncrona para /api/analytics
+        fetch('/api/analytics?' + queryString)
+            .then(res => res.json())
+            .then(m => {
+                // Atualiza KPIs
+                const valTotal = document.getElementById('val-total-demandas');
+                if (valTotal) valTotal.textContent = m.total_demandas;
+
+                const valAbertas = document.getElementById('val-abertas');
+                if (valAbertas) valAbertas.textContent = m.total_abertas;
+                const badgePctAbertas = document.getElementById('badge-pct-abertas');
+                if (badgePctAbertas) badgePctAbertas.textContent = m.pct_abertas + '%';
+
+                const valAndamento = document.getElementById('val-em-andamento');
+                if (valAndamento) valAndamento.textContent = m.total_em_andamento;
+                const badgePctAndamento = document.getElementById('badge-pct-andamento');
+                if (badgePctAndamento) badgePctAndamento.textContent = m.pct_em_andamento + '%';
+
+                const valConcluidas = document.getElementById('val-concluidas');
+                if (valConcluidas) valConcluidas.textContent = m.total_concluidas;
+                const badgePctConcluidas = document.getElementById('badge-pct-concluidas');
+                if (badgePctConcluidas) badgePctConcluidas.textContent = m.pct_concluidas + '%';
+
+                const valCanceladas = document.getElementById('val-canceladas');
+                if (valCanceladas) valCanceladas.textContent = m.total_canceladas;
+                const badgePctCanceladas = document.getElementById('badge-pct-canceladas');
+                if (badgePctCanceladas) badgePctCanceladas.textContent = m.pct_canceladas + '%';
+
+                const valAtrasadas = document.getElementById('val-atrasadas');
+                if (valAtrasadas) valAtrasadas.textContent = m.total_fora_sla;
+                const badgeTaxaAtraso = document.getElementById('badge-taxa-atraso');
+                if (badgeTaxaAtraso) badgeTaxaAtraso.textContent = m.taxa_fora_sla_ativas + '%';
+
+                const detalheForaSla = document.getElementById('detalhe-fora-sla');
+                if (detalheForaSla) {
+                    detalheForaSla.textContent = `(${m.total_atrasadas_prazo} prazo estourado + ${m.total_sem_resp_fora_sla} sem resp.)`;
+                }
+
+                const valTempoMedio = document.getElementById('val-tempo-medio');
+                if (valTempoMedio) valTempoMedio.textContent = m.tempo_medio_formatado;
+                const valConcluidasTempo = document.getElementById('val-concluidas-tempo');
+                if (valConcluidasTempo) valConcluidasTempo.textContent = m.total_concluidas_com_tempo;
+                const valSlaGlobal = document.getElementById('val-sla-global');
+                if (valSlaGlobal) valSlaGlobal.textContent = m.taxa_sla_geral + '%';
+
+                const valScoreSev = document.getElementById('val-score-severidade');
+                if (valScoreSev) valScoreSev.innerHTML = `${m.score_severidade} <span style="font-size:1.1rem; color:var(--text-muted); font-weight:600;">/ 4.0</span>`;
+
+                const badgeSevDesc = document.getElementById('badge-severidade-desc');
+                if (badgeSevDesc) {
+                    badgeSevDesc.textContent = m.severidade_classificacao;
+                    badgeSevDesc.className = 'score-badge ' + (m.score_severidade >= 3.0 ? 'alta' : (m.score_severidade >= 2.0 ? 'moderada' : 'baixa'));
+                }
+
+                // Atualiza rodapé
+                const footerFiltros = document.getElementById('footer-texto-filtros');
+                if (footerFiltros) footerFiltros.innerHTML = `<strong>Filtros aplicados:</strong> ${m.texto_filtros}`;
+
+                const footerTime = document.getElementById('footer-timestamp');
+                if (footerTime) footerTime.innerHTML = `<strong>Relatório gerado em:</strong> ${m.timestamp_geracao}`;
+
+                // Recarrega todos os 5 gráficos com novos dados
+                inicializarGraficos(m);
+            })
+            .catch(err => console.error('Erro na atualização dinâmica:', err));
+    }
+
+    // Vincula atualização dinâmica aos inputs
+    const filtrosInputs = document.querySelectorAll('.filtro-dinamico');
+    filtrosInputs.forEach(input => {
+        input.addEventListener('change', function() {
+            executarAtualizacaoDinamica();
+        });
+    });
+
+    // Inicializa links de exportação com query string atual
+    atualizarLinksExportacao(new URLSearchParams(window.location.search).toString());
+});
+</script>
+{% endblock %}

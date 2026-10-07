@@ -1,102 +1,232 @@
 {% extends "base.html" %}
 
+{% block title %}Demandas - SGDI{% endblock %}
+
 {% block content %}
-<h2>Lista de Demandas</h2>
-
-<form method="GET" action="/" class="filtros">
-    {% if filtros.q %}
-        <input type="hidden" name="q" value="{{ filtros.q }}">
-    {% endif %}
-
-    <label for="status">Status:</label>
-    <select name="status" id="status">
-        <option value="">Todas</option>
-        {% for opcao in status_opcoes %}
-            <option value="{{ opcao }}" {{ 'selected' if filtros.status == opcao }}>{{ opcao }}</option>
-        {% endfor %}
-    </select>
-
-    <label for="prioridade">Prioridade:</label>
-    <select name="prioridade" id="prioridade">
-        <option value="">Todas</option>
-        {% for opcao in prioridade_opcoes %}
-            <option value="{{ opcao }}" {{ 'selected' if filtros.prioridade == opcao }}>{{ opcao }}</option>
-        {% endfor %}
-    </select>
-
-    <label for="responsavel">Responsável:</label>
-    <select name="responsavel" id="responsavel">
-        <option value="">Todos</option>
-        {% for usuario in usuarios %}
-            <option value="{{ usuario['id'] }}" {{ 'selected' if filtros.responsavel == usuario['id'] }}>{{ usuario['nome'] }}</option>
-        {% endfor %}
-    </select>
-
-    <button type="submit">Filtrar</button>
-    <a href="/">Limpar filtros</a>
-</form>
-
-<table border="1" cellpadding="10" cellspacing="0" width="100%">
-    <thead>
-        <tr bgcolor="#cccccc">
-            <th>ID</th>
-            <th>Título</th>
-            <th>Solicitante</th>
-            <th>Data</th>
-            <th>Status</th>
-            <th>Prioridade</th>
-            <th>Responsável</th>
-            <th>Ações</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for demanda in demandas %}
-        <tr>
-            <td>{{ demanda[0] }}</td>
-            <td>{{ demanda[1] }}</td>
-            <td>{{ demanda['solicitante_nome'] }}</td>
-            <td>{{ demanda[4] }}</td>
-            <td>{{ demanda[5] }}</td>
-            <td>{{ demanda[6] }}</td>
-            <td>{{ demanda['responsavel_nome'] or 'Sem responsável' }}</td>
-            <td>
-                <a href="/detalhes/{{ demanda[0] }}">Ver</a>
-                |
-                <a href="/editar/{{ demanda[0] }}">Editar</a>
-                |
-                <a href="/deletar/{{ demanda[0] }}" style="color:red;">Deletar</a>
-            </td>
-        </tr>
-        {% else %}
-        <tr>
-            <td colspan="8">Nenhuma demanda encontrada.</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
-
-<div class="paginacao">
-    {% if pagina > 1 %}
-        <a href="{{ url_for('index', pagina=pagina - 1, **filtros) }}">&laquo; Anterior</a>
-    {% endif %}
-
-    {% for p in range(1, total_paginas + 1) %}
-        {% if p == pagina %}
-            <strong>{{ p }}</strong>
-        {% else %}
-            <a href="{{ url_for('index', pagina=p, **filtros) }}">{{ p }}</a>
-        {% endif %}
-    {% endfor %}
-
-    {% if pagina < total_paginas %}
-        <a href="{{ url_for('index', pagina=pagina + 1, **filtros) }}">Próxima &raquo;</a>
-    {% endif %}
-
-    <span class="paginacao-info">Página {{ pagina }} de {{ total_paginas }} ({{ total }} demanda{{ 's' if total != 1 }})</span>
+<div class="dashboard-hero" style="margin-bottom:1.25rem;">
+    <div class="dashboard-hero-title">
+        <h1><span>📋</span> Gestão de Demandas</h1>
+        <p>Acompanhamento detalhado do ciclo de vida, prioridades e prazos de atendimento</p>
+    </div>
+    <div class="dashboard-hero-actions">
+        <a href="/" class="btn btn-secondary" id="btn-voltar-painel">
+            <span>📊</span> Painel Analytics
+        </a>
+        <a href="/nova_demanda" class="btn btn-primary" id="btn-nova-demanda-index">
+            <span>+</span> Nova Demanda
+        </a>
+    </div>
 </div>
 
+<!-- Mini Barra de KPIs Rápidos -->
+{% if resumo_kpis %}
+<div class="mini-kpi-bar">
+    <a href="/demandas" class="mini-kpi-item" title="Ver todas as demandas">
+        <span class="label">Total Geral</span>
+        <span class="val">{{ resumo_kpis.total }}</span>
+    </a>
+    <a href="/demandas?status=Aberta" class="mini-kpi-item" title="Filtrar demandas abertas">
+        <span class="label">Abertas</span>
+        <span class="val" style="color:var(--info);">{{ resumo_kpis.abertas }}</span>
+    </a>
+    <a href="/demandas?status=Concluída" class="mini-kpi-item" title="Filtrar demandas concluídas">
+        <span class="label">Concluídas</span>
+        <span class="val" style="color:var(--success);">{{ resumo_kpis.concluidas }}</span>
+    </a>
+    <a href="/demandas?prazo=atrasadas" class="mini-kpi-item" title="Filtrar demandas em atraso">
+        <span class="label">⚠️ Atrasadas</span>
+        <span class="val" style="color:var(--danger);">{{ resumo_kpis.atrasadas }}</span>
+    </a>
+</div>
+{% endif %}
 
-<br><br>
-<a href="/nova_demanda"><button>+ Nova Demanda</button></a>
+<!-- Caixa de Filtros Combinados -->
+<div class="filtros-box">
+    <form method="GET" action="/demandas" class="filtros-form" id="form-filtros">
+        {% if filtros.q %}
+            <input type="hidden" name="q" value="{{ filtros.q }}">
+        {% endif %}
 
+        <div class="filter-group">
+            <label for="periodo">Período:</label>
+            <select name="periodo" id="periodo">
+                <option value="todos" {{ 'selected' if filtros.periodo == 'todos' or not filtros.periodo }}>Todo o histórico</option>
+                <option value="7d" {{ 'selected' if filtros.periodo == '7d' }}>Últimos 7 dias</option>
+                <option value="30d" {{ 'selected' if filtros.periodo == '30d' }}>Últimos 30 dias</option>
+                <option value="90d" {{ 'selected' if filtros.periodo == '90d' }}>Últimos 90 dias</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label for="status">Status:</label>
+            <select name="status" id="status">
+                <option value="">Todos os status</option>
+                {% for opcao in status_opcoes %}
+                    <option value="{{ opcao }}" {{ 'selected' if filtros.status == opcao }}>{{ opcao }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label for="prioridade">Prioridade:</label>
+            <select name="prioridade" id="prioridade">
+                <option value="">Todas as prioridades</option>
+                {% for opcao in prioridade_opcoes %}
+                    <option value="{{ opcao }}" {{ 'selected' if filtros.prioridade == opcao }}>{{ opcao }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label for="responsavel">Responsável:</label>
+            <select name="responsavel" id="responsavel">
+                <option value="">Todos os responsáveis</option>
+                {% for usuario in usuarios %}
+                    <option value="{{ usuario['id'] }}" {{ 'selected' if filtros.responsavel == usuario['id'] }}>{{ usuario['nome'] }}</option>
+                {% endfor %}
+                <option value="sem_responsavel" {{ 'selected' if filtros.responsavel == 'sem_responsavel' }}>Sem responsável</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label for="prazo">Prazo / SLA:</label>
+            <select name="prazo" id="prazo">
+                <option value="">Todos os prazos</option>
+                <option value="no_prazo" {{ 'selected' if filtros.prazo == 'no_prazo' }}>No prazo</option>
+                <option value="atrasadas" {{ 'selected' if filtros.prazo == 'atrasadas' }}>Atrasadas (Fora do SLA)</option>
+            </select>
+        </div>
+
+        <div class="filtros-actions">
+            <button type="submit" class="btn btn-primary" id="btn-aplicar-filtros">Filtrar</button>
+            <a href="/demandas" class="btn btn-secondary" id="btn-limpar-filtros">Limpar</a>
+        </div>
+    </form>
+</div>
+
+<!-- Tabela de Demandas -->
+<div class="section-card">
+    <div class="section-card-header">
+        <div>
+            <h2><span>📋</span> Listagem de Demandas ({{ total }})</h2>
+            <p>Demandas cadastradas conforme filtros aplicados</p>
+        </div>
+        <div class="export-group" id="export-toolbar-demandas">
+            <span style="font-size:0.775rem; color:var(--text-muted); font-weight:600; margin-right:0.25rem;">EXPORTAR:</span>
+            <a href="{{ url_for('exportar_pdf', **filtros) }}" class="btn-export pdf" title="Exportar relatório em PDF">
+                <span>📄</span> PDF
+            </a>
+            <a href="{{ url_for('exportar_excel', **filtros) }}" class="btn-export excel" title="Exportar dados para Excel">
+                <span>📊</span> Excel
+            </a>
+            <a href="{{ url_for('exportar_csv', **filtros) }}" class="btn-export csv" title="Exportar para CSV (ponto e vírgula)">
+                <span>📑</span> CSV
+            </a>
+            <button onclick="window.print()" class="btn-export" title="Imprimir relatório">
+                <span>🖨️</span> Imprimir
+            </button>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="data-table" id="tabela-demandas">
+            <thead>
+                <tr>
+                    <th style="width: 60px;">ID</th>
+                    <th>Título</th>
+                    <th>Solicitante</th>
+                    <th>Criação</th>
+                    <th>Status</th>
+                    <th>Prioridade</th>
+                    <th>Situação do Prazo</th>
+                    <th>Responsável</th>
+                    <th style="text-align: right; width: 140px;">Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for demanda in demandas %}
+                <tr class="{% if demanda['status_sla'] in ['atrasada', 'sem_responsavel_fora_sla'] %}row-fora-sla{% endif %}">
+                    <td><strong>#{{ demanda['id'] }}</strong></td>
+                    <td>
+                        <a href="/detalhes/{{ demanda['id'] }}" style="font-weight: 600; color: {% if demanda['status_sla'] in ['atrasada', 'sem_responsavel_fora_sla'] %}#b91c1c{% else %}var(--text-main){% endif %}; text-decoration: none;">
+                            {{ demanda['titulo'] }}
+                        </a>
+                    </td>
+                    <td>{{ demanda['solicitante_nome'] or '-' }}</td>
+                    <td style="font-size:0.8rem; color:var(--text-muted);">{{ demanda['data_criacao'][:16] if demanda['data_criacao'] else '-' }}</td>
+                    <td>
+                        <span class="badge badge-status-{{ demanda['status']|lower|replace(' ', '-') }}">
+                            {{ demanda['status'] }}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge badge-prio-{{ demanda['prioridade']|lower }}">
+                            {{ demanda['prioridade'] }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if demanda['status_sla'] == 'atrasada' %}
+                            <span class="badge badge-sla-atrasada" title="Prazo excedido">⚠️ Atrasada (SLA)</span>
+                        {% elif demanda['status_sla'] == 'sem_responsavel_fora_sla' %}
+                            <span class="badge badge-sla-atrasada" title="Sem responsável atribuído (fora do SLA)">🚨 Sem Resp. (Fora SLA)</span>
+                        {% elif demanda['status_sla'] == 'cancelada' %}
+                            <span class="badge badge-status-cancelada" title="Demanda cancelada">Cancelada</span>
+                        {% elif demanda['status_sla'] == 'concluida_atrasada' %}
+                            <span class="badge badge-sla-aviso" title="Entregue com atraso">Concluída (Atraso)</span>
+                        {% elif demanda['status_sla'] == 'concluida_no_prazo' %}
+                            <span class="badge badge-sla-ok" title="Entregue dentro do prazo">✅ Concluída no prazo</span>
+                        {% else %}
+                            <span class="badge badge-sla-ok" title="Dentro do prazo previsto">No prazo</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if demanda['responsavel_nome'] %}
+                            <span style="font-weight: 500;">{{ demanda['responsavel_nome'] }}</span>
+                        {% else %}
+                            <span class="text-danger" style="font-weight: 700; font-size: 0.8rem;">⚠️ Sem responsável</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: right; white-space: nowrap;">
+                        <a href="/detalhes/{{ demanda['id'] }}" class="btn btn-secondary btn-sm" title="Visualizar detalhes">Ver</a>
+                        <a href="/editar/{{ demanda['id'] }}" class="btn btn-secondary btn-sm" title="Editar demanda">Editar</a>
+                        <a href="/deletar/{{ demanda['id'] }}" class="btn btn-danger btn-sm" onclick="return confirm('Confirma a exclusão da demanda #{{ demanda['id'] }}?');" title="Excluir demanda">Excluir</a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="9" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+                        Nenhuma demanda encontrada para os critérios selecionados.
+                        <br><br>
+                        <a href="/demandas" class="btn btn-secondary btn-sm">Limpar filtros de busca</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Paginação -->
+<div class="paginacao">
+    <div class="paginacao-links">
+        {% if pagina > 1 %}
+            <a href="{{ url_for('demandas', pagina=pagina - 1, **filtros) }}" id="pag-anterior">&laquo; Anterior</a>
+        {% endif %}
+
+        {% for p in range(1, total_paginas + 1) %}
+            {% if p == pagina %}
+                <strong>{{ p }}</strong>
+            {% else %}
+                <a href="{{ url_for('demandas', pagina=p, **filtros) }}">{{ p }}</a>
+            {% endif %}
+        {% endfor %}
+
+        {% if pagina < total_paginas %}
+            <a href="{{ url_for('demandas', pagina=pagina + 1, **filtros) }}" id="pag-proxima">Próxima &raquo;</a>
+        {% endif %}
+    </div>
+
+    <span class="paginacao-info">
+        Página {{ pagina }} de {{ total_paginas }} (Total de {{ total }} demanda{{ 's' if total != 1 }})
+    </span>
+</div>
 {% endblock %}

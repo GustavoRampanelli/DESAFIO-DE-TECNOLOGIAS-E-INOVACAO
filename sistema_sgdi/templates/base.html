@@ -1,39 +1,84 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-BR">
 <head>
-    <title>SGDI - Sistema de Gestão de Demandas</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}SGDI - Sistema de Gestão de Demandas Internas{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <style>
-        body { margin: 0; }
-    </style>
+    <!-- Chart.js para os gráficos do Painel Analytics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
-<body>
-    <div class="header">
-        <h1>SGDI</h1>
-        <div class="menu">
-            <a href="/">Início</a>
-            <a href="/nova_demanda">Nova Demanda</a>
-            <form action="/" method="GET" style="display:inline;">
-                <input type="text" name="q" placeholder="Buscar" value="{{ request.args.get('q', '') }}">
-                <button type="submit">Buscar</button>
-            </form>
+<body class="obsidian-theme">
+    <!-- Obsidian Top Workspace Ribbon -->
+    <header class="header obs-header">
+        <div class="header-container obs-header-container">
+            <a href="/" class="brand obs-brand" title="SGDI Workspace">
+                <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo SGDI" class="logo-img obs-logo" onerror="this.style.display='none'">
+                <div class="brand-text">
+                    <span class="brand-title">SGDI</span>
+                    <span class="brand-subtitle obs-vault-badge">SSR Vault</span>
+                </div>
+            </a>
+
+            <!-- Obsidian Workspace Tabs -->
+            <nav class="menu obs-menu">
+                <a href="/" class="nav-link obs-tab-link {% if request.path in ['/', '/dashboard', '/analytics'] %}active{% endif %}" id="nav-painel">
+                    <span class="obs-icon">📊</span> Analytics
+                </a>
+                <a href="/demandas" class="nav-link obs-tab-link {% if request.path == '/demandas' %}active{% endif %}" id="nav-demandas">
+                    <span class="obs-icon">📋</span> Demandas
+                </a>
+                <a href="/criticas-atrasadas" class="nav-link obs-tab-link obs-tab-urgent {% if request.path in ['/criticas-atrasadas', '/urgentes'] %}active{% endif %}" id="nav-criticas">
+                    <span class="obs-icon">🚨</span> Críticas & Atrasadas
+                    {% if total_urgentes_global > 0 %}
+                        <span class="obs-badge-counter" title="{{ total_urgentes_global }} demandas críticas ou fora do SLA">{{ total_urgentes_global }}</span>
+                    {% endif %}
+                </a>
+                <a href="/nova_demanda" class="btn-novo-header obs-btn-new" id="btn-nova-demanda">
+                    <span>+</span> Nova Demanda
+                </a>
+
+                <form action="/demandas" method="GET" class="search-nav obs-search" id="header-search-form">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" name="q" placeholder="Buscar no vault..." value="{{ request.args.get('q', '') }}" id="header-search-input">
+                    <span class="obs-shortcut-hint">Ctrl+K</span>
+                </form>
+            </nav>
         </div>
-    </div>
+    </header>
 
-    {% with messages = get_flashed_messages() %}
-        {% if messages %}
-            {% for message in messages %}
-                <div class="alert">{{ message }}</div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
+    <main class="container obs-container">
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="obs-callout obs-callout-info" role="alert" style="margin-bottom: 1.25rem;">
+                        <div class="obs-callout-title">
+                            <span class="obs-callout-icon">ℹ️</span>
+                            <span>{{ message }}</span>
+                        </div>
+                        <button type="button" onclick="this.parentElement.style.display='none'" class="obs-close-btn">&times;</button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
 
-    <div class="container">
         {% block content %}{% endblock %}
-    </div>
+    </main>
 
-    <div class="footer">
-        <p>SGDI v1.0 - 2024</p>
-    </div>
+    <!-- Obsidian Status Bar Footer -->
+    <footer class="footer obs-footer">
+        <div class="obs-status-bar">
+            <span><strong>SGDI</strong> // SSR Governança & Analytics</span>
+            <span class="obs-sep">&bull;</span>
+            <span>Ativas fora do SLA: <strong class="text-danger">{{ total_urgentes_global }}</strong></span>
+            <span class="obs-sep">&bull;</span>
+            <span class="obs-code" style="font-size:0.75rem;">Obsidian Interface Engine v2.0</span>
+        </div>
+    </footer>
+
+    {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+
+{% block title %}Críticas & Atrasadas - War Room SGDI{% endblock %}
+
+{% block content %}
+<!-- Obsidian Header / Breadcrumb -->
+<div class="obs-pane-header">
+    <div class="obs-pane-title">
+        <div class="obs-tag-group">
+            <span class="obs-tag obs-tag-danger">#radar-critico</span>
+            <span class="obs-tag obs-tag-purple">#war-room</span>
+            <span class="obs-tag obs-tag-muted">{{ stats.total }} itens detectados</span>
+        </div>
+        <h1><span>🚨</span> Gestão Dedicada: Críticas & Atrasadas</h1>
+        <p class="obs-pane-subtitle">Foco absoluto em contenção de riscos, gargalos de alocação e prazos extrapolados</p>
+    </div>
+    <div class="obs-pane-actions">
+        <a href="{{ url_for('exportar_pdf', status='Aberta') }}" class="btn-obsidian btn-obs-danger" title="Exportar Dossiê Crítico em PDF">
+            <span>📄</span> Dossiê PDF
+        </a>
+        <a href="{{ url_for('exportar_excel') }}" class="btn-obsidian btn-obs-secondary" title="Exportar para Excel">
+            <span>📊</span> Excel
+        </a>
+        <a href="/nova_demanda" class="btn-obsidian btn-obs-accent" title="Criar nova demanda">
+            <span>+</span> Nova Demanda
+        </a>
+    </div>
+</div>
+
+<!-- Obsidian Callout de Alerta Máximo -->
+<div class="obs-callout obs-callout-danger" style="margin-bottom: 1.5rem;">
+    <div class="obs-callout-title">
+        <span class="obs-callout-icon">🔥</span>
+        <strong>DIRETRIZ DE CONTENÇÃO & GOVERNANÇA OPERACIONAL</strong>
+    </div>
+    <div class="obs-callout-content">
+        Demandas listadas abaixo exigem ação prioritária imediata. <strong>Regras ativas:</strong> 
+        Itens <em>Críticos</em> pesam 4x no backlog; demandas <em>Sem Responsável</em> violam SLA imediatamente; prazos vencidos devem ser tratados com urgência técnica.
+    </div>
+</div>
+
+<!-- Obsidian Metric Strip (Cards Rápidos de Emergência) -->
+<div class="obs-stat-strip">
+    <a href="/criticas-atrasadas?aba=todas" class="obs-stat-card {% if aba_ativa == 'todas' %}active{% endif %}">
+        <div class="obs-stat-top">
+            <span class="obs-stat-label">Total no Radar</span>
+            <span class="obs-stat-icon">🎯</span>
+        </div>
+        <div class="obs-stat-val">{{ stats.total }}</div>
+        <div class="obs-stat-hint">Itens críticos ou em atraso</div>
+    </a>
+
+    <a href="/criticas-atrasadas?aba=criticas_atrasadas" class="obs-stat-card danger {% if aba_ativa == 'criticas_atrasadas' %}active{% endif %}">
+        <div class="obs-stat-top">
+            <span class="obs-stat-label">Críticas + Atrasadas</span>
+            <span class="obs-stat-icon">🔥</span>
+        </div>
+        <div class="obs-stat-val text-danger">{{ stats.criticas_atrasadas }}</div>
+        <div class="obs-stat-hint">Risco duplo (Máxima prioridade)</div>
+    </a>
+
+    <a href="/criticas-atrasadas?aba=criticas_prazo" class="obs-stat-card purple {% if aba_ativa == 'criticas_prazo' %}active{% endif %}">
+        <div class="obs-stat-top">
+            <span class="obs-stat-label">Críticas no Prazo</span>
+            <span class="obs-stat-icon">⚡</span>
+        </div>
+        <div class="obs-stat-val" style="color:var(--obs-accent-light);">{{ stats.criticas_no_prazo }}</div>
+        <div class="obs-stat-hint">Monitoramento preventivo</div>
+    </a>
+
+    <a href="/criticas-atrasadas?aba=outras_atrasadas" class="obs-stat-card warning {% if aba_ativa == 'outras_atrasadas' %}active{% endif %}">
+        <div class="obs-stat-top">
+            <span class="obs-stat-label">Outras em Atraso</span>
+            <span class="obs-stat-icon">⚠️</span>
+        </div>
+        <div class="obs-stat-val" style="color:var(--obs-warning);">{{ stats.outras_atrasadas }}</div>
+        <div class="obs-stat-hint">Alta/Média/Baixa fora do SLA</div>
+    </a>
+
+    <a href="/criticas-atrasadas?aba=sem_responsavel" class="obs-stat-card alert {% if aba_ativa == 'sem_responsavel' %}active{% endif %}">
+        <div class="obs-stat-top">
+            <span class="obs-stat-label">Sem Responsável</span>
+            <span class="obs-stat-icon">👤</span>
+        </div>
+        <div class="obs-stat-val" style="color:#f87171;">{{ stats.sem_responsavel }}</div>
+        <div class="obs-stat-hint">Gargalo de alocação imediata</div>
+    </a>
+</div>
+
+<!-- Tabs de Triagem Obsidian -->
+<div class="obs-tabs-bar">
+    <div class="obs-tabs-list">
+        <a href="/criticas-atrasadas?aba=todas" class="obs-tab-item {% if aba_ativa == 'todas' %}active{% endif %}">
+            Todas as Urgências ({{ stats.total }})
+        </a>
+        <a href="/criticas-atrasadas?aba=criticas_atrasadas" class="obs-tab-item {% if aba_ativa == 'criticas_atrasadas' %}active{% endif %}">
+            🔥 Críticas Atrasadas ({{ stats.criticas_atrasadas }})
+        </a>
+        <a href="/criticas-atrasadas?aba=criticas_prazo" class="obs-tab-item {% if aba_ativa == 'criticas_prazo' %}active{% endif %}">
+            ⚡ Críticas no Prazo ({{ stats.criticas_no_prazo }})
+        </a>
+        <a href="/criticas-atrasadas?aba=outras_atrasadas" class="obs-tab-item {% if aba_ativa == 'outras_atrasadas' %}active{% endif %}">
+            ⚠️ Outras Atrasadas ({{ stats.outras_atrasadas }})
+        </a>
+        <a href="/criticas-atrasadas?aba=sem_responsavel" class="obs-tab-item {% if aba_ativa == 'sem_responsavel' %}active{% endif %}">
+            🚨 Sem Responsável ({{ stats.sem_responsavel }})
+        </a>
+    </div>
+    <div class="obs-tabs-meta">
+        Exibindo <span class="obs-code">{{ demandas|length }}</span> de <span class="obs-code">{{ stats.total }}</span>
+    </div>
+</div>
+
+<!-- Painel Tabela de Triagem -->
+<div class="obs-pane-card">
+    <div class="table-responsive">
+        <table class="obs-table" id="tabela-war-room">
+            <thead>
+                <tr>
+                    <th style="width: 70px;">ID</th>
+                    <th style="width: 150px;">Gravidade</th>
+                    <th>Título & Diagnóstico</th>
+                    <th>Prioridade</th>
+                    <th>Status Atual</th>
+                    <th>SLA & Temporizador</th>
+                    <th>Responsável Atual</th>
+                    <th style="width: 170px; text-align: right;">Triagem Rápida</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in demandas %}
+                <tr class="obs-row {% if d.categoria == 'critica_atrasada' %}row-critica-atrasada{% elif d.em_atraso or d.responsavel_id is none %}row-fora-sla{% endif %}">
+                    <td>
+                        <span class="obs-code-id">#{{ "%03d"|format(d.id) }}</span>
+                    </td>
+                    <td>
+                        {% if d.categoria == 'critica_atrasada' %}
+                            <span class="obs-tag obs-tag-danger pulse-tag" title="Crítica e Atrasada">🔥 CRÍTICA + ATRASO</span>
+                        {% elif d.categoria == 'critica_prazo' %}
+                            <span class="obs-tag obs-tag-purple" title="Crítica no Prazo">⚡ CRÍTICA ATIVA</span>
+                        {% elif d.categoria == 'sem_responsavel' %}
+                            <span class="obs-tag obs-tag-danger" title="Sem responsável = Fora do SLA">🚨 SEM RESPONSÁVEL</span>
+                        {% else %}
+                            <span class="obs-tag obs-tag-warning" title="Prazo violado">⚠️ FORA DO SLA</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="obs-demand-cell">
+                            <a href="/detalhes/{{ d.id }}" class="obs-demand-title">
+                                {{ d.titulo }}
+                            </a>
+                            <div class="obs-demand-meta">
+                                Solicitante: <span>{{ d.solicitante_nome or 'Não identificado' }}</span> &bull; 
+                                Aberta em: <span class="obs-code-inline">{{ d.data_criacao[:16] if d.data_criacao else '-' }}</span>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="obs-tag obs-tag-prio-{{ d.prioridade|lower }}">
+                            #{{ d.prioridade|lower }} ({{ d.peso }}x)
+                        </span>
+                    </td>
+                    <td>
+                        <span class="obs-tag obs-tag-status-{{ d.status|lower|replace(' ', '-') }}">
+                            #{{ d.status|lower|replace(' ', '-') }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if d.em_atraso %}
+                            <div class="obs-timer-danger">
+                                <span class="obs-timer-icon">⏳</span>
+                                <strong class="obs-code">{{ d.tempo_status_str }}</strong>
+                            </div>
+                            <div class="obs-timer-sub">Limite: {{ d.data_limite[:16] if d.data_limite else '-' }}</div>
+                        {% else %}
+                            <div class="obs-timer-ok">
+                                <span class="obs-timer-icon">⏱️</span>
+                                <span class="obs-code">{{ d.tempo_status_str }}</span>
+                            </div>
+                            <div class="obs-timer-sub">Limite: {{ d.data_limite[:16] if d.data_limite else '-' }}</div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if d.responsavel_nome %}
+                            <div class="obs-user-badge">
+                                <span class="obs-user-dot"></span>
+                                <strong>{{ d.responsavel_nome }}</strong>
+                            </div>
+                        {% else %}
+                            <div class="obs-user-empty">
+                                <span class="text-danger" style="font-weight:700;">⚠️ Sem responsável</span>
+                                <div style="font-size:0.7rem; color:var(--obs-danger);">Fora do SLA por ausência de dono</div>
+                            </div>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: right; white-space: nowrap;">
+                        <!-- Mini formulário de alocação rápida -->
+                        <form action="/atribuir_responsavel_rapido/{{ d.id }}" method="POST" class="form-alocacao-rapida">
+                            <input type="hidden" name="origem" value="{{ request.full_path }}">
+                            <select name="responsavel_id" onchange="this.form.submit()" class="obs-select-sm" title="Atribuir responsável imediatamente">
+                                <option value="">Atribuir...</option>
+                                {% for u in usuarios %}
+                                    <option value="{{ u.id }}" {{ 'selected' if d.responsavel_id == u.id }}>{{ u.nome }}</option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                        <div style="margin-top: 0.35rem; display:flex; justify-content:flex-end; gap:0.3rem;">
+                            <a href="/detalhes/{{ d.id }}" class="btn-obs-icon" title="Ver detalhes completos">🔍</a>
+                            <a href="/editar/{{ d.id }}" class="btn-obs-icon" title="Editar demanda">✏️</a>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8" style="text-align: center; padding: 3rem; color: var(--obs-text-muted);">
+                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">🎉</div>
+                        <strong>Nenhuma demanda crítica ou em atraso encontrada nesta categoria!</strong>
+                        <p style="margin-top: 0.35rem; font-size: 0.85rem;">Todas as demandas selecionadas estão em conformidade com as diretrizes operacionais.</p>
+                        <a href="/criticas-atrasadas" class="btn-obsidian btn-obs-secondary" style="margin-top: 1rem; display: inline-flex;">
+                            Ver todas as urgências
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

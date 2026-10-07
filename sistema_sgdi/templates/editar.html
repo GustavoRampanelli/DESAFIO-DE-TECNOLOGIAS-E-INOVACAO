@@ -1,72 +1,95 @@
 {% extends "base.html" %}
 
+{% block title %}Editar Demanda #{{ demanda['id'] }} - SGDI{% endblock %}
+
 {% block content %}
-<h2>Editar Demanda</h2>
+<div class="dashboard-hero" style="margin-bottom: 1.5rem;">
+    <div class="dashboard-hero-title">
+        <h1><span>✏️</span> Editar Demanda #{{ demanda['id'] }}</h1>
+        <p>Atualize o status, prioridade ou responsável pela demanda</p>
+    </div>
+    <div class="dashboard-hero-actions">
+        <a href="/demandas" class="btn btn-secondary">
+            <span>&larr;</span> Voltar para Demandas
+        </a>
+    </div>
+</div>
 
+<div class="form-card">
+    <form method="POST" action="/editar/{{ demanda['id'] }}" id="form-editar-demanda">
+        <div class="form-group">
+            <label for="titulo">Título da Demanda *</label>
+            <input type="text" name="titulo" id="titulo" value="{{ demanda['titulo'] }}" required>
+        </div>
 
-<form method="POST" action="/editar/{{ demanda[0] }}">
-    <div>
-        <label>Título:</label><br>
-        <input type="text" name="titulo" value="{{ demanda[1] }}" size="50">
-    </div>
-    <br>
-    
-    <div>
-        <label>Descrição:</label><br>
-        <textarea name="descricao" rows="5" cols="50">{{ demanda[2] }}</textarea>
-    </div>
-    <br>
-    
-    <div>
-        <label for="solicitante">Solicitante:</label><br>
-        <select name="solicitante_id" id="solicitante" required>
-            <option value="">Selecione o solicitante</option>
-            {% for usuario in usuarios %}
-                <option value="{{ usuario['id'] }}" {{ 'selected' if demanda['solicitante_id'] == usuario['id'] }}>{{ usuario['nome'] }}</option>
-            {% endfor %}
-        </select>
-    </div>
-    <br>
+        <div class="form-group">
+            <label for="descricao">Descrição Detalhada</label>
+            <textarea name="descricao" id="descricao" rows="4">{{ demanda['descricao'] }}</textarea>
+        </div>
 
-    <div>
-        <label for="status">Status:</label><br>
-        <select name="status" id="status">
-            {% for opcao in status_opcoes %}
-                <option value="{{ opcao }}" {{ 'selected' if demanda[5] == opcao }}>{{ opcao }}</option>
-            {% endfor %}
-        </select>
-    </div>
-    <br>
+        <div class="form-group">
+            <label for="solicitante_id">Solicitante *</label>
+            <select name="solicitante_id" id="solicitante_id" required>
+                <option value="">Selecione o solicitante</option>
+                {% for usuario in usuarios %}
+                    <option value="{{ usuario['id'] }}" {{ 'selected' if demanda['solicitante_id'] == usuario['id'] }}>
+                        {{ usuario['nome'] }} ({{ usuario['email'] }})
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
 
-    <div>
-        <label for="prioridade">Prioridade:</label><br>
-        <select name="prioridade" id="prioridade">
-            {% for opcao in prioridade_opcoes %}
-                <option value="{{ opcao }}" {{ 'selected' if demanda[6] == opcao }}>{{ opcao }}</option>
-            {% endfor %}
-        </select>
-    </div>
-    <br>
+        <div class="form-group">
+            <label for="status">Status do Ciclo de Vida</label>
+            <select name="status" id="status">
+                {% for opcao in status_opcoes %}
+                    <option value="{{ opcao }}" {{ 'selected' if demanda['status'] == opcao }}>{{ opcao }}</option>
+                {% endfor %}
+            </select>
+            <small style="color:var(--text-muted); font-size:0.75rem; margin-top:0.25rem; display:block;">
+                Ao selecionar "Concluída", a data de finalização é computada para cálculo do tempo de resolução e SLA.
+            </small>
+        </div>
 
-    <div>
-        <label for="responsavel">Responsável:</label><br>
-        <select name="responsavel_id" id="responsavel">
-            <option value="">Sem responsável</option>
-            {% for usuario in usuarios %}
-                <option value="{{ usuario['id'] }}" {{ 'selected' if demanda['responsavel_id'] == usuario['id'] }}>{{ usuario['nome'] }}</option>
-            {% endfor %}
-        </select>
-    </div>
-    <br>
-    
-    <div>
-        <label>Data de Criação:</label><br>
-        <input type="text" value="{{ demanda[4] }}" disabled>
-    </div>
-    <br>
-    
-    <button type="submit">Atualizar</button>
-    <a href="/"><button type="button">Cancelar</button></a>
-</form>
+        <div class="form-group">
+            <label for="prioridade">Prioridade e SLA Estimado</label>
+            <select name="prioridade" id="prioridade">
+                {% for opcao in prioridade_opcoes %}
+                    <option value="{{ opcao }}" {{ 'selected' if demanda['prioridade'] == opcao }}>
+                        {{ opcao }}
+                        {% if opcao == 'Crítica' %}(SLA: 2 dias){% elif opcao == 'Alta' %}(SLA: 5 dias){% elif opcao == 'Média' %}(SLA: 10 dias){% elif opcao == 'Baixa' %}(SLA: 20 dias){% endif %}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
 
+        <div class="form-group">
+            <label for="responsavel_id">Responsável Designado</label>
+            <select name="responsavel_id" id="responsavel_id">
+                <option value="">Sem responsável (Aguardando atribuição)</option>
+                {% for usuario in usuarios %}
+                    <option value="{{ usuario['id'] }}" {{ 'selected' if demanda['responsavel_id'] == usuario['id'] }}>
+                        {{ usuario['nome'] }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.25rem;">
+            <div>
+                <label style="font-size:0.775rem; color:var(--text-muted); font-weight:600; text-transform:uppercase;">Data de Criação</label>
+                <input type="text" value="{{ demanda['data_criacao'] }}" disabled style="background:#f1f5f9; color:var(--text-muted);">
+            </div>
+            <div>
+                <label style="font-size:0.775rem; color:var(--text-muted); font-weight:600; text-transform:uppercase;">Data de Conclusão</label>
+                <input type="text" value="{{ demanda['data_conclusao'] or 'Ainda em aberto' }}" disabled style="background:#f1f5f9; color:var(--text-muted);">
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="btn-atualizar-demanda">Atualizar Demanda</button>
+            <a href="/demandas" class="btn btn-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
 {% endblock %}

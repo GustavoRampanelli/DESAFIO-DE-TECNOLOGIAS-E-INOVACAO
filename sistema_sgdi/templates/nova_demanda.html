@@ -1,58 +1,68 @@
 {% extends "base.html" %}
 
+{% block title %}Nova Demanda - SGDI{% endblock %}
+
 {% block content %}
-<h2>Nova Demanda</h2>
-
-<form method="POST" action="/nova_demanda">
-    <div>
-        <label>Título:</label><br>
-        <input type="text" name="titulo" size="50">
+<div class="dashboard-hero" style="margin-bottom: 1.5rem;">
+    <div class="dashboard-hero-title">
+        <h1><span>➕</span> Cadastrar Nova Demanda</h1>
+        <p>Preencha os dados da demanda para inclusão no fluxo de atendimento e controle de SLA</p>
     </div>
-    <br>
-    
-    <div>
-        <label>Descrição:</label><br>
-        <textarea name="descricao" rows="5" cols="50"></textarea>
+    <div class="dashboard-hero-actions">
+        <a href="/demandas" class="btn btn-secondary">
+            <span>&larr;</span> Voltar para Demandas
+        </a>
     </div>
-    <br>
-    
-    <div>
-        <label for="Solicitante">Solicitante:</label><br>
-        <select name="solicitante_id" id="solicitante" required>
-        <option value="">Selecione o solicitante</option>
-
-        {% for usuario in usuarios %}
-            <option value="{{ usuario['id'] }}">
-                {{ usuario['nome'] }}
-            </option>
-        {% endfor %}
-    </select>
 </div>
-    <br>
 
-    <div>
-        <label for="prioridade">Prioridade:</label><br>
-        <select name="prioridade" id="prioridade">
-            {% for opcao in prioridade_opcoes %}
-                <option value="{{ opcao }}" {{ 'selected' if opcao == prioridade_padrao }}>{{ opcao }}</option>
-            {% endfor %}
-        </select>
-    </div>
-    <br>
+<div class="form-card">
+    <form method="POST" action="/nova_demanda" id="form-nova-demanda">
+        <div class="form-group">
+            <label for="titulo">Título da Demanda *</label>
+            <input type="text" name="titulo" id="titulo" required placeholder="Ex: Ajustar emissão de notas fiscais">
+        </div>
 
-    <div>
-        <label for="responsavel">Responsável:</label><br>
-        <select name="responsavel_id" id="responsavel">
-            <option value="">Sem responsável</option>
-            {% for usuario in usuarios %}
-                <option value="{{ usuario['id'] }}">{{ usuario['nome'] }}</option>
-            {% endfor %}
-        </select>
-    </div>
-    <br>
-    
-    <button type="submit">Salvar</button>
-    <a href="/"><button type="button">Cancelar</button></a>
-</form>
+        <div class="form-group">
+            <label for="descricao">Descrição Detalhada</label>
+            <textarea name="descricao" id="descricao" rows="4" placeholder="Descreva os requisitos, contexto ou problema a ser solucionado..."></textarea>
+        </div>
 
+        <div class="form-group">
+            <label for="solicitante_id">Solicitante *</label>
+            <select name="solicitante_id" id="solicitante_id" required>
+                <option value="">Selecione o solicitante</option>
+                {% for usuario in usuarios %}
+                    <option value="{{ usuario['id'] }}">{{ usuario['nome'] }} ({{ usuario['email'] }})</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="prioridade">Prioridade e SLA Estimado</label>
+            <select name="prioridade" id="prioridade">
+                {% for opcao in prioridade_opcoes %}
+                    <option value="{{ opcao }}" {{ 'selected' if opcao == prioridade_padrao }}>
+                        {{ opcao }} 
+                        {% if opcao == 'Crítica' %}(SLA: 2 dias){% elif opcao == 'Alta' %}(SLA: 5 dias){% elif opcao == 'Média' %}(SLA: 10 dias){% elif opcao == 'Baixa' %}(SLA: 20 dias){% endif %}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="responsavel_id">Responsável Designado</label>
+            <select name="responsavel_id" id="responsavel_id">
+                <option value="">Sem responsável (Aguardando atribuição)</option>
+                {% for usuario in usuarios %}
+                    <option value="{{ usuario['id'] }}">{{ usuario['nome'] }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="btn-salvar-demanda">Salvar Demanda</button>
+            <a href="/demandas" class="btn btn-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
 {% endblock %}
