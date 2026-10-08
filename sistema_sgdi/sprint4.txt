@@ -95,8 +95,19 @@ REQ-26 Redesign de Layout: Inspirado no Obsidian      ENTREGUE    Obsidian Works
   Tempo Médio = Soma(data_conclusao - data_criacao) / Total_Concluidas
 
 
-5. ARQUITETURA TÉCNICA E TELAS DO SISTEMA
+5. ARQUITETURA TÉCNICA, MODULARIZAÇÃO E TELAS DO SISTEMA
 --------------------------------------------------------------------------------
+5.0. Desacoplamento Arquitetural em Camadas (Refatoração de app.py e ADR-001):
+- Para solucionar o inchaço do monólito app.py (>1.400 linhas), foi implementada 
+  uma Arquitetura em Camadas de Serviço (documentada formalmente em ADR-001):
+  * app.py: Controlador HTTP Flask leve (~370 linhas) gerenciando rotas e templates.
+  * config.py: Centralização de constantes, parâmetros de SLA e pesos de criticidade.
+  * database.py: Conexão SQLite, queries padrão consolidadas e rotinas de migração.
+  * services/sla_service.py: Regras de SLA, cálculo de prazos e formatação de tempo.
+  * services/analytics_service.py: Agregações estatísticas, filtros SQL e séries Chart.js.
+  * services/export_service.py: Geradores isolados de relatórios em CSV, Excel e PDF.
+  * ADR-001: Registro de Decisão Arquitetural publicado em /ADR/ADR-001-modularizacao-arquitetura-sgdi.md (.pdf).
+
 5.1. Painel Principal de Analytics (/ ou /dashboard ou /analytics)
 - 8 Cards Executivos de Telemetria (KPIs):
   1. Total de Demandas Cadastradas (com indicador percentual de conclusão).
