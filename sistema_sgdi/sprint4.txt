@@ -1,0 +1,327 @@
+================================================================================
+SGDI - SISTEMA DE GESTÃO DE DEMANDAS INTERNAS
+SSR - GESTÃO & GOVERNANÇA | DESAFIO DE TECNOLOGIAS E INOVAÇÃO
+DOCUMENTO TÉCNICO DE ENTREGA E FECHAMENTO - SPRINT 4
+================================================================================
+
+1. IDENTIFICAÇÃO DO PROJETO E SPRINT
+--------------------------------------------------------------------------------
+Projeto:           SGDI - Sistema de Gestão de Demandas Internas
+Organização:       SSR - Gestão & Governança
+Sprint:            Sprint 4 (Analytics, Governança de SLA e Obsidian UI)
+Status da Sprint:  CONCLUÍDA COM SUCESSO (100% dos requisitos homologados)
+Repositório Git:   https://github.com/GustavoRampanelli/DESAFIO-DE-TECNOLOGIAS-E-INOVACAO.git
+Branch:            main
+Data de Fechamento: 07 de Outubro de 2026
+
+
+2. VISÃO GERAL E OBJETIVOS DA SPRINT 4
+--------------------------------------------------------------------------------
+A Sprint 4 consolidou a evolução do SGDI de um gerenciador operacional para uma 
+plataforma analítica e executiva de alta governança corporativa. O foco central 
+foi a criação de inteligência de dados, controle rigoroso de SLA por prioridade, 
+monitoramento preventivo de riscos com visão dedicada War Room, exportação de 
+relatórios com conformidade corporativa e a reformulação completa da experiência 
+do usuário (UX/UI) inspirada na estética minimalista e técnica do software OBSIDIAN.
+
+
+3. MATRIZ DE REQUISITOS E ENTREGAS
+--------------------------------------------------------------------------------
+Ref.   Requisito Solicitado                           Status      Implementação
+----   --------------------------------------------   ---------   ------------------------------------------
+REQ-1  Painel Principal de Analytics                  ENTREGUE    Dashboard centralizado em / e /dashboard
+REQ-2  Números gerais: Total de demandas              ENTREGUE    KPI Card com taxa de conclusão e total
+REQ-3  Números gerais: Abertas/Concluídas/Atrasadas   ENTREGUE    KPI Cards segregados com alertas visuais
+REQ-4  Números gerais: Por Responsável                ENTREGUE    Gráficos e estatísticas por responsável
+REQ-5  Números gerais: Tempo Médio de Resolução       ENTREGUE    KPI de tempo real calculado em dias úteis
+REQ-6  Gráficos visuais interativos                   ENTREGUE    5 gráficos interativos Chart.js
+REQ-7  Gráfico por Status                             ENTREGUE    Rosca (Doughnut) com ciclo de vida
+REQ-8  Gráfico por Prioridade                         ENTREGUE    Barras verticais ponderadas (No Prazo x SLA)
+REQ-9  Gráfico de Evolução Temporal                   ENTREGUE    Spline temporal (Criadas vs. Concluídas)
+REQ-10 Atualização Dinâmica (Sem F5)                  ENTREGUE    Fetch API assíncrono consumindo /api/analytics
+REQ-11 Filtros por Período (7d, 30d, 90d, custom)     ENTREGUE    Dropdown na barra de filtros + datas
+REQ-12 Filtros por Responsável                        ENTREGUE    Dropdown integrado com membros e sem dono
+REQ-13 Filtros por Prioridade                         ENTREGUE    Dropdown com Baixa, Média, Alta e Crítica
+REQ-14 Filtros por Status                             ENTREGUE    Dropdown com ciclo completo de status
+REQ-15 Atrasados aparecem em vermelho                 ENTREGUE    Cores #ef4444 em cards, badges e linhas
+REQ-16 Sem responsável = Fora do SLA                  ENTREGUE    Demandas sem dono violam SLA por regra
+REQ-17 Críticos pesam mais que médio                  ENTREGUE    Pesos 4x, 3x, 2x, 1x e Score de Severidade
+REQ-18 Cancelados fora do tempo médio                 ENTREGUE    Exclusão formal de demandas canceladas
+REQ-19 Exportação em PDF corporativo                  ENTREGUE    Endpoint /exportar/pdf (markdown_pdf)
+REQ-20 Exportação em Excel profissional (.xlsx)       ENTREGUE    Endpoint /exportar/excel (openpyxl)
+REQ-21 Exportação em CSV (delimitado por ;)           ENTREGUE    Endpoint /exportar/csv (utf-8-sig)
+REQ-22 Cabeçalho corporativo oficial                  ENTREGUE    "SGDI | SSR - Gestão & Governança"
+REQ-23 Rodapé com filtros aplicados                   ENTREGUE    Identificação de filtros ativos no momento
+REQ-24 Timestamp da data/hora de geração              ENTREGUE    Data e horário no formato DD/MM/AAAA às HH:MM
+REQ-25 Visão dedicada: Críticas + Atrasadas           ENTREGUE    War Room em /criticas-atrasadas /urgentes
+REQ-26 Redesign de Layout: Inspirado no Obsidian      ENTREGUE    Obsidian Workspace Dark Graphite & Mono
+
+
+4. DETALHAMENTO DA LÓGICA DE NEGÓCIO E GOVERNANÇA DE SLA
+--------------------------------------------------------------------------------
+4.1. Regra de Governança de SLA e Atraso (Overdue in Red):
+- Uma demanda ativa (status != 'Concluída' e status != 'Cancelada') é classificada
+  como "Fora do SLA" quando:
+  * A data limite calculada (data_limite) for anterior à data corrente (hoje); OU
+  * A demanda não possuir responsável definido (responsavel_id IS NULL).
+- Identidade visual estrita de alerta:
+  * Cards de métricas com bordas e destaques no tom vermelho carmesim (#ef4444 / #f87171).
+  * Linhas da tabela de demandas recebem borda indicadora lateral esquerda de 3px em 
+    vermelho vivo e fundo sutilmente avermelhado (.row-fora-sla e .row-critica-atrasada).
+  * Badges Markdown `#fora-sla` e `#atrasada` estilizadas em vermelho.
+
+4.2. Regra "Sem Responsável = Fora do SLA":
+- No modelo de governança SGDI, demandas em aberto sem um líder técnico ou responsável 
+  atribuído configuram abandono de fila operacional. Por determinação da regra de negócio, 
+  são imediatamente contabilizadas como violação de SLA, sendo marcadas com a tag:
+  `#sem-responsavel` e `#fora-sla`, além de listadas com prioridade no War Room.
+
+4.3. Regra de Ponderação de Criticidade (Críticos Pesam Mais que Médio):
+- Cada prioridade possui um peso multiplicador oficial e um prazo teto de SLA:
+  * Crítica: Peso 4.0 | SLA: 2 dias úteis
+  * Alta:    Peso 3.0 | SLA: 5 dias úteis
+  * Média:   Peso 2.0 | SLA: 10 dias úteis
+  * Baixa:   Peso 1.0 | SLA: 20 dias úteis
+- Cálculo do Backlog Severity Score (Índice de Severidade do Backlog Ativo):
+  Score = Soma(Qtd_Demandas_Ativas_por_Prioridade * Peso) / Total_Demandas_Ativas
+  Esse indicador numérico varia de 1.0 (backlog leve) a 4.0 (backlog sob risco crítico),
+  permitindo ao gestor avaliar a real complexidade operacional da fila.
+
+4.4. Regra "Cancelados Fora do Tempo Médio":
+- Para não distorcer artificialmente os indicadores de produtividade da equipe, qualquer 
+  demanda com status 'Cancelada' é estritamente expurgada do cálculo de tempo de resolução.
+- O tempo médio de resolução (tempo_medio_dias) considera única e exclusivamente demandas 
+  com status 'Concluída', computando a diferença exata entre data_criacao e data_conclusao:
+  Tempo Médio = Soma(data_conclusao - data_criacao) / Total_Concluidas
+
+
+5. ARQUITETURA TÉCNICA E TELAS DO SISTEMA
+--------------------------------------------------------------------------------
+5.1. Painel Principal de Analytics (/ ou /dashboard ou /analytics)
+- 8 Cards Executivos de Telemetria (KPIs):
+  1. Total de Demandas Cadastradas (com indicador percentual de conclusão).
+  2. Demandas Abertas (fila inicial aguardando atendimento).
+  3. Demandas Em Andamento (em tratamento ativo pela equipe).
+  4. Demandas Concluídas (entregas homologadas com sucesso).
+  5. Demandas Atrasadas / Fora do SLA (destaque visual em vermelho alerta).
+  6. Demandas Sem Responsável (gargalos operacionais imediatos).
+  7. Tempo Médio de Resolução (em dias e horas úteis consolidadas).
+  8. Índice de Severidade do Backlog Ativo (score ponderado de 1.0 a 4.0).
+- 5 Gráficos Interativos (Renderizados com Chart.js e paleta dark Obsidian):
+  1. Gráfico de Evolução Temporal: Linha spline comparativa de criação vs. conclusão.
+  2. Gráfico de Distribuição por Status: Rosca doughnut do ciclo de vida das demandas.
+  3. Gráfico de Carga por Prioridade: Barras com segregação "No Prazo" vs "Fora do SLA".
+  4. Gráfico de Desempenho por Responsável: Barras empilhadas de concluídas vs pendentes.
+  5. Gráfico de SLA Alvo vs Real: Comparativo horizontal entre tempo real e meta de SLA.
+- Barra de Filtros Reativos:
+  * Filtro por Período: Todo o histórico, 7 dias, 30 dias, 90 dias ou Personalizado.
+  * Filtro por Responsável: Todos, membros específicos ou Sem responsável.
+  * Filtro por Prioridade: Todas, Baixa, Média, Alta ou Crítica.
+  * Filtro por Status: Todos, Aberta, Em andamento, Concluída ou Cancelada.
+  * Disparo assíncrono via Fetch API (/api/analytics) com atualização fluida sem reload.
+
+5.2. Visão Dedicada: War Room de Críticas e Atrasadas (/criticas-atrasadas ou /urgentes)
+- Painel de contenção operacional focado em estancar gargalos de risco elevado.
+- Abas rápidas de segmentação com contadores dinâmicos:
+  * Todas Urgentes (visão consolidada de todas as anomalias de SLA).
+  * Críticas Atrasadas (duplo risco: prioridade máxima vencida - ação mandatória).
+  * Críticas no Prazo (monitoramento preventivo de demandas com teto de 2 dias).
+  * Outras em Atraso (demandas médias ou baixas que extrapolaram a meta).
+  * Sem Responsável (demandas sem dono atribuído).
+- Atribuição Rápida Inline:
+  * Permite ao gestor selecionar diretamente o responsável no grid sem abrir o formulário.
+  * Disparo via POST em /atribuir_responsavel_rapido/<id> com recarregamento ágil e 
+    registro automático de apontamento no histórico de comentários da demanda.
+- Badge Global na Barra Superior:
+  * Indicador numérico em vermelho presente no cabeçalho Ribbon de todas as páginas 
+    mostrando a quantidade atual de demandas críticas ou atrasadas no sistema.
+
+5.3. Listagem Geral de Demandas (/demandas)
+- Barra de ferramentas corporativa com botões de exportação rápida (PDF, Excel, CSV, Print).
+- Busca rápida textual por título, solicitante, departamento ou responsável.
+- Paginação inteligente e responsiva mantendo os filtros ativos na URL.
+- Destaque em linha vermelha para demandas fora do SLA operacional.
+
+5.4. Telas Operacionais (Nova Demanda, Edição, Detalhes)
+- Formulários limpos com preview dinâmico de prazo de SLA conforme a prioridade escolhida.
+- Registro de data_conclusao automatizado ao marcar status como 'Concluída'.
+- Timeline de comentários e histórico com autor, timestamp e anotações técnicas.
+
+
+6. ESPECIFICAÇÃO DO MOTOR DE EXPORTAÇÃO CORPORATIVA
+--------------------------------------------------------------------------------
+Todos os módulos de exportação cumprem rigorosamente os três requisitos institucionais:
+1. Cabeçalho Corporativo: "SGDI - Sistema de Gestão de Demandas Internas | SSR - Gestão & Governança"
+2. Rodapé com Filtros: Especificação textual exata de todos os filtros ativos no momento da extração.
+3. Timestamp de Extração: Registro cronológico preciso no formato DD/MM/AAAA às HH:MM:SS.
+
+6.1. Exportação em PDF (/exportar/pdf)
+- Implementada com markdown_pdf, convertendo dinamicamente templates estruturados.
+- Seções incluídas:
+  * Cabeçalho institucional formal com data e hora de geração.
+  * Sumário Executivo com contagem de Total, Abertas, Em Andamento, Concluídas e Fora SLA.
+  * Tabela de Governança de SLA com prazos regimentais e pesos de severidade.
+  * Tabela analítica completa com ID, Título, Prioridade, Responsável, Status e Data Limite.
+  * Rodapé corporativo contendo os parâmetros de filtro selecionados.
+
+6.2. Exportação em Excel (.xlsx) (/exportar/excel)
+- Implementada via openpyxl gerando pasta de trabalho com 2 abas personalizadas:
+  * Aba "Resumo Executivo": Cards de métricas consolidadas, contadores de status e governança.
+  * Aba "Demandas Detalhadas": Grade tabular completa com cabeçalho grafite (#1B1B1E), 
+    texto em negrito branco, auto-ajuste de largura de colunas, alinhamento profissional e
+    linhas com alerta de status.
+  * Rodapé formal contendo os filtros ativos e timestamp.
+
+6.3. Exportação em CSV (/exportar/csv)
+- Geração com codificação UTF-8 com BOM (utf-8-sig) para compatibilidade nativa com o 
+  Microsoft Excel em língua portuguesa, evitando qualquer corrupção de acentuação (ç, ã, é).
+- Delimitador padronizado em ponto e vírgula (;).
+- Contém metadados de cabeçalho corporativo, colunas completas e rodapé informativo.
+
+6.4. Impressão Executiva (@media print)
+- Folha de estilo em static/style.css otimizada para impressoras e salvamento nativo em PDF:
+  * Remove menus, ribbons, barras de filtro e botões de ação.
+  * Converte elementos para contraste preto e branco de alta legibilidade em papel A4.
+  * Preserva quebras de página naturais em tabelas e cards.
+
+
+7. ESPECIFICAÇÃO DE UX/UI: DESIGN SYSTEM OBSIDIAN WORKSPACE
+--------------------------------------------------------------------------------
+A interface do SGDI foi totalmente redesenhada abandonando temas genéricos e adotando 
+a consagrada estética do aplicativo Obsidian (focado em trabalho técnico e imersivo):
+
+7.1. Paleta de Cores e Tokens CSS:
+- Fundo Principal da Aplicação:   --obs-bg-main:    #141416 (Dark Graphite profundo)
+- Fundo de Painéis e Barras:      --obs-bg-pane:    #1b1b1e (Grafite escovado)
+- Superfície de Cards e Caixas:   --obs-bg-card:    #212126 (Painel elevado suave)
+- Superfície de Hover e Destaque: --obs-bg-hover:   #2a2a32 (Transição sutil)
+- Bordas Cirúrgicas (1px):        --obs-border:     #323238 (Divisórias estruturadas)
+- Bordas de Destaque Sutil:       --obs-border-soft:#282830
+- Texto Primário de Leitura:      --obs-text-main:  #e4e4e7 (Alto contraste fosco)
+- Texto Secundário e Metadados:   --obs-text-muted: #94949e
+- Texto Terciário / Rodapé:       --obs-text-faint: #62626e
+- Tom de Destaque / Identidade:   --obs-accent:     #7c3aed (Violeta Obsidian)
+- Alerta Crítico / SLA Vencido:   --obs-danger:     #ef4444 (Vermelho Alerta)
+- Atenção / Em Andamento:         --obs-warning:    #f59e0b (Âmbar técnico)
+- Sucesso / Entregue:             --obs-success:    #10b981 (Esmeralda suave)
+
+7.2. Tipografia Técnica Mista:
+- UI Primária e Títulos: Fonte "Inter" (sans-serif) para leitura ergonômica e moderna.
+- Metadados, Códigos e Datas: Fonte "JetBrains Mono" (monospace) para identificadores 
+  (#025), contadores de prazo, temporizadores e telemetria da barra de status.
+
+7.3. Elementos de Interface Nativos Obsidian:
+- Tags no estilo Markdown: Badges com formato de tag (#critica, #fora-sla, #war-room).
+- Callouts do Obsidian: Caixas de alerta com borda esquerda sólida colorida e ícone:
+  * [!danger]  Para violações de SLA e alertas do War Room.
+  * [!warning] Para atenções e demandas a expirar.
+  * [!info]    Para orientações e filtros ativos.
+- Barra Superior Obsidian Ribbon: Barra técnica minimalista com links em abas, botão 
+  de atalho de busca visual (Ctrl+K) e badge de demandas urgentes.
+- Status Bar Footer: Rodapé técnico no fim da página exibindo a versão da engine (SGDI v4.0), 
+  total de demandas no banco e indicador de integridade operacional (SLA Health).
+
+
+8. CATÁLOGO DE ROTAS E ENDPOINTS DA APLICAÇÃO
+--------------------------------------------------------------------------------
+Endpoint                         Método    Tipo       Finalidade
+------------------------------   -------   --------   -------------------------------------------
+/                                GET       HTML       Painel Principal de Analytics (Dashboard)
+/dashboard                       GET       HTML       Alias para o Painel Analytics
+/analytics                       GET       HTML       Alias para o Painel Analytics
+/api/analytics                   GET       JSON       API de dados em tempo real para Chart.js
+/demandas                        GET       HTML       Listagem geral com paginação e exportação
+/criticas-atrasadas              GET       HTML       War Room de triagem de demandas de risco
+/urgentes                        GET       HTML       Alias para o War Room de Críticas/Atrasadas
+/nova_demanda                    GET/POST  HTML       Abertura de nova demanda com prazos de SLA
+/detalhes/<id>                   GET       HTML       Exibição completa, histórico e timeline
+/editar/<id>                     GET/POST  HTML       Edição de dados e marcação de conclusão
+/deletar/<id>                    POST/GET  Redirect   Exclusão lógica/física da demanda
+/adicionar_comentario/<id>       POST      Redirect   Inclusão de apontamento de histórico
+/atribuir_responsavel_rapido/<id>POST      Redirect   Alocação ágil de responsável via War Room
+/exportar/pdf                    GET       Arquivo    Download de relatório executivo em PDF
+/exportar/excel                  GET       Arquivo    Download de planilha analítica em Excel (.xlsx)
+/exportar/csv                    GET       Arquivo    Download de dados em CSV (delimitado por ;)
+
+
+9. ESTRUTURA DE BANCO DE DADOS E SEED REALISTA
+--------------------------------------------------------------------------------
+O SGDI utiliza o banco de dados relacional SQLite (demandas.db) com tabelas indexadas:
+
+9.1. Tabela 'usuarios':
+- id (INTEGER PRIMARY KEY)
+- nome (TEXT NOT NULL)
+- email (TEXT NOT NULL UNIQUE)
+- departamento (TEXT NOT NULL)
+- role (TEXT NOT NULL DEFAULT 'analista')
+
+9.2. Tabela 'demandas':
+- id (INTEGER PRIMARY KEY)
+- titulo (TEXT NOT NULL)
+- descricao (TEXT NOT NULL)
+- solicitante (TEXT NOT NULL)
+- departamento (TEXT NOT NULL)
+- prioridade (TEXT NOT NULL: Baixa, Média, Alta, Crítica)
+- status (TEXT NOT NULL: Aberta, Em andamento, Concluída, Cancelada)
+- responsavel_id (INTEGER NULL, FK usuarios.id)
+- data_criacao (TEXT NOT NULL)
+- data_limite (TEXT NOT NULL - calculada conforme SLA da prioridade)
+- data_conclusao (TEXT NULL - preenchida ao concluir a demanda)
+
+9.3. Tabela 'historico':
+- id (INTEGER PRIMARY KEY)
+- demanda_id (INTEGER NOT NULL, FK demandas.id)
+- usuario (TEXT NOT NULL)
+- comentario (TEXT NOT NULL)
+- data_criacao (TEXT NOT NULL)
+
+9.4. Dados de Teste Realistas (init_db.py):
+- O script init_db.py gera automaticamente 27 demandas com cenários operacionais ricos:
+  * Demandas dentro e fora do SLA.
+  * Demandas concluídas com registro real de data_conclusao.
+  * Demandas canceladas para teste da regra de exclusão da média.
+  * Demandas sem responsável para teste de quebra de SLA automática.
+  * Demandas críticas em atraso para teste do War Room.
+
+
+10. MATRIZ DE TESTES E CRITÉRIOS DE ACEITE
+--------------------------------------------------------------------------------
+Ref.    Critério de Aceite                             Status     Evidência
+-----   --------------------------------------------   --------   -------------------------------
+CA-01   Exibição dos 8 KPIs no painel principal        APROVADO   Cards renderizados e validados
+CA-02   Renderização dos 5 gráficos Chart.js           APROVADO   Canvas ativos e responsivos
+CA-03   Filtros dinâmicos sem recarregar tela          APROVADO   Consumo JSON via /api/analytics
+CA-04   Demandas em atraso destacadas em vermelho      APROVADO   Cores #ef4444 e .row-fora-sla
+CA-05   Sem responsável contabilizado fora do SLA      APROVADO   Identificado em KPIs e tabelas
+CA-06   Ponderação de criticidade no Backlog Score     APROVADO   Fórmula 4x, 3x, 2x, 1x ativa
+CA-07   Canceladas excluídas do tempo médio            APROVADO   Filtro SQL em status='Concluída'
+CA-08   Exportação em PDF com cabeçalho e rodapé       APROVADO   Arquivo gerado com markdown_pdf
+CA-09   Exportação em Excel (.xlsx) com abas e cores   APROVADO   Arquivo gerado com openpyxl
+CA-10   Exportação em CSV com UTF-8-sig e separador ;  APROVADO   Arquivo gerado e testado
+CA-11   Tela War Room com triagem e alocação rápida    APROVADO   POST funcional e log registrado
+CA-12   Design System Obsidian Workspace aplicado      APROVADO   Layout escuro, tokens e fontes
+CA-13   Compatibilidade Python 3.13 e Werkzeug 3.1.3   APROVADO   Shim de compatibilidade ativo
+
+
+11. GUIA DE EXECUÇÃO E REPRODUTIBILIDADE
+--------------------------------------------------------------------------------
+1. Clonar o repositório ou navegar até a pasta da aplicação:
+   cd c:\Users\Gustavo Rampanelli\Downloads\DESAFIO-DE-TECNOLOGIAS-E-INOVACAO\sistema_sgdi
+
+2. Instalar dependências Python:
+   pip install -r requirements.txt
+
+3. Inicializar e popular o banco de dados (se necessário):
+   python init_db.py
+
+4. Iniciar o servidor de aplicação:
+   python app.py
+
+5. Acessar no navegador:
+   http://localhost:5000/
+
+
+================================================================================
+SGDI - SISTEMA DE GESTÃO DE DEMANDAS INTERNAS | SPRINT 4 CONCLUÍDA COM SUCESSO
+SSR - GESTÃO & GOVERNANÇA | DESAFIO DE TECNOLOGIAS E INOVAÇÃO
+================================================================================
