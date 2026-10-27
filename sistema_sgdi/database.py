@@ -6,8 +6,50 @@ automáticas de esquema e queries padrão de demandas com cálculo de SLA.
 
 import sqlite3
 from datetime import timedelta
-from config import DB_PATH, SLA_DIAS_POR_PRIORIDADE, SLA_PADRAO_DIAS
+from werkzeug.security import generate_password_hash
+from config import (
+    DB_PATH,
+    SLA_DIAS_POR_PRIORIDADE,
+    SLA_PADRAO_DIAS,
+    PERFIL_ADMIN,
+    PERFIL_COLABORADOR,
+    SENHA_PADRAO,
+    ADMIN_PADRAO
+)
 from services.sla_service import parse_data
+
+
+# Trilha de auditoria (Sprint 5): append-only, protegida por triggers contra UPDATE/DELETE
+SQL_TABELA_AUDITORIA = '''
+CREATE TABLE IF NOT EXISTS logs_auditoria (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    data_hora TEXT NOT NULL,
+    usuario_id INTEGER,
+    usuario_nome TEXT,
+    acao TEXT NOT NULL,
+    entidade TEXT,
+    entidade_id INTEGER,
+    descricao TEXT NOT NULL,
+    detalhes TEXT,
+    ip TEXT,
+    user_agent TEXT,
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+);
+CREATE INDEX IF NOT EXISTS idx_logs_data_hora ON logs_auditoria (data_hora);
+CREATE INDEX IF NOT EXISTS idx_logs_entidade ON logs_auditoria (entidade, entidade_id);
+CREATE INDEX IF NOT EXISTS idx_logs_usuario ON logs_auditoria (usuario_id);
+CREATE INDEX IF NOT EXISTS idx_logs_acao ON logs_auditoria (acao);
+CREATE TRIGGER IF NOT EXISTS trg_logs_auditoria_bloqueia_update
+BEFORE UPDATE ON logs_auditoria
+BEGIN
+    SELECT RAISE(ABORT, 'Registros de auditoria são imutáveis e não podem ser alterados.');
+END;
+CREATE TRIGGER IF NOT EXISTS trg_logs_auditoria_bloqueia_delete
+BEFORE DELETE ON logs_auditoria
+BEGIN
+    SELECT RAISE(ABORT, 'Registros de auditoria são imutáveis e não podem ser excluídos.');
+END;
+'''
 
 
 def get_db():
@@ -43,9 +85,41 @@ def garantir_migracao_db(conn):
     if concluidas_sem_data:
         conn.commit()
 
+    garantir_controle_acesso(conn)
+    conn.executescript(SQL_TABELA_AUDITORIA)
+
+
+def garantir_controle_acesso(conn):
+    """Adiciona senha (hash) e perfil aos usuários e garante que exista ao menos um administrador."""
+    cursor = conn.cursor()
+    colunas = [col[1] for col in cursor.execute('PRAGMA table_info(usuarios)').fetchall()]
+    if 'senha_hash' not in colunas:
+        cursor.execute('ALTER TABLE usuarios ADD COLUMN senha_hash TEXT')
+    if 'perfil' not in colunas:
+        cursor.execute(f"ALTER TABLE usuarios ADD COLUMN perfil TEXT NOT NULL DEFAULT '{PERFIL_COLABORADOR}'")
+
+    # Usuários anteriores à Sprint 5 recebem a senha padrão (armazenada apenas como hash)
+    sem_senha = cursor.execute('SELECT id FROM usuarios WHERE senha_hash IS NULL').fetchall()
+    for row in sem_senha:
+        cursor.execute(
+            'UPDATE usuarios SET senha_hash = ? WHERE id = ?',
+            (generate_password_hash(SENHA_PADRAO), row['id'])
+        )
+
+    tem_admin = cursor.execute('SELECT 1 FROM usuarios WHERE perfil = ?', (PERFIL_ADMIN,)).fetchone()
+    if not tem_admin:
+        nome, email = ADMIN_PADRAO
+        cursor.execute(
+            'INSERT OR IGNORE INTO usuarios (nome, email, senha_hash, perfil) VALUES (?, ?, ?, ?)',
+            (nome, email, generate_password_hash(SENHA_PADRAO), PERFIL_ADMIN)
+        )
+        cursor.execute('UPDATE usuarios SET perfil = ? WHERE email = ?', (PERFIL_ADMIN, email))
+
+    conn.commit()
+
 
 def listar_usuarios(conn):
-    """Retorna lista de todos os usuários ordenados por nome."""
+    """Retorna lista de todos os usuários ordenados por nome (sem expor o hash de senha)."""
     return conn.execute('SELECT id, nome, email FROM usuarios ORDER BY nome').fetchall()
 
 

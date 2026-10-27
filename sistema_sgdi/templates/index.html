@@ -188,7 +188,11 @@
                     <td style="text-align: right; white-space: nowrap;">
                         <a href="/detalhes/{{ demanda['id'] }}" class="btn btn-secondary btn-sm" title="Visualizar detalhes">Ver</a>
                         <a href="/editar/{{ demanda['id'] }}" class="btn btn-secondary btn-sm" title="Editar demanda">Editar</a>
-                        <a href="/deletar/{{ demanda['id'] }}" class="btn btn-danger btn-sm" onclick="return confirm('Confirma a exclusão da demanda #{{ demanda['id'] }}?');" title="Excluir demanda">Excluir</a>
+                        {% if usuario_atual.perfil == PERFIL_ADMIN %}
+                        <form action="/deletar/{{ demanda['id'] }}" method="POST" style="display:inline;" onsubmit="return confirm('Confirma a exclusão da demanda #{{ demanda['id'] }}? A ação ficará registrada na auditoria.');">
+                            <button type="submit" class="btn btn-danger btn-sm" title="Excluir demanda (somente administradores)">Excluir</button>
+                        </form>
+                        {% endif %}
                     </td>
                 </tr>
                 {% else %}

@@ -1,6 +1,9 @@
 from datetime import datetime
 import os
 import sqlite3
+from werkzeug.security import generate_password_hash
+from config import SENHA_PADRAO, PERFIL_ADMIN, PERFIL_COLABORADOR, ADMIN_PADRAO
+from database import garantir_migracao_db
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'demandas.db')
 
@@ -43,18 +46,22 @@ cursor.execute('''
 CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT, 
     nome TEXT NOT NULL,
-    email TEXT UNIQUE
+    email TEXT UNIQUE,
+    senha_hash TEXT,
+    perfil TEXT NOT NULL DEFAULT 'colaborador'
 )
 ''')
 
-# 3. Inserção de Usuários
+# 3. Inserção de Usuários (senha inicial SENHA_PADRAO, armazenada somente como hash)
 usuarios = [
-    ('Arthur Spada', 'arthur@email.com'),
-    ('Gustavo Rampanelli', 'gustavo@email.com'),
-    ('Eduardo', 'eduardo@email.com'),
+    ('Arthur Spada', 'arthur@email.com', PERFIL_COLABORADOR),
+    ('Gustavo Rampanelli', 'gustavo@email.com', PERFIL_COLABORADOR),
+    ('Eduardo', 'eduardo@email.com', PERFIL_COLABORADOR),
+    (ADMIN_PADRAO[0], ADMIN_PADRAO[1], PERFIL_ADMIN),
 ]
 cursor.executemany(
-    'INSERT OR IGNORE INTO usuarios (nome, email) VALUES (?, ?)', usuarios
+    'INSERT OR IGNORE INTO usuarios (nome, email, senha_hash, perfil) VALUES (?, ?, ?, ?)',
+    [(nome, email, generate_password_hash(SENHA_PADRAO), perfil) for nome, email, perfil in usuarios]
 )
 
 # 4. Inserção de Demandas (deixando o SQLite gerar o ID automático)
@@ -205,6 +212,10 @@ VALUES (?, ?, ?, ?)
 )
 
 conn.commit()
+
+# 6. Trilha de auditoria (Sprint 5): mesma migração executada pela aplicação
+conn.row_factory = sqlite3.Row
+garantir_migracao_db(conn)
 conn.close()
 
 print('Banco de dados recriado com sucesso!')

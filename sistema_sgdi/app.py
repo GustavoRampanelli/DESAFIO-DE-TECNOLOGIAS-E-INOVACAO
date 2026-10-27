@@ -3,12 +3,13 @@ Aplicação Principal do SGDI - Sistema de Gestão de Demandas Internas.
 SSR - Gestão & Governança | Desafio de Tecnologias e Inovação.
 
 Controlador HTTP principal (Flask). Orquestra as rotas de Analytics, War Room,
-Gestão de Demandas, Histórico de Comentários e Exportação Corporativa,
+Gestão de Demandas, Histórico de Comentários, Exportação Corporativa e,
+a partir da Sprint 5, Autenticação, Controle de Acesso e Auditoria,
 delegando regras de negócio e infraestrutura para módulos especializados.
 """
 
 import math
-from datetime import datetime
+from datetime import datetime, timedelta
 import werkzeug
 
 # Compatibilidade para versões recentes do Werkzeug no Python 3.13
@@ -19,7 +20,7 @@ if not hasattr(werkzeug, '__version__'):
     except Exception:
         werkzeug.__version__ = '3.1.3'
 
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, got_request_exception
 
 # Configurações e Banco de Dados
 from config import (
@@ -28,7 +29,11 @@ from config import (
     STATUS_OPCOES,
     PRIORIDADE_OPCOES,
     PRIORIDADE_PADRAO,
-    PESO_PRIORIDADE
+    PESO_PRIORIDADE,
+    PERFIL_ADMIN,
+    SESSAO_DURACAO_HORAS,
+    ACOES_AUDITORIA,
+    ACOES_SEGURANCA
 )
 from database import (
     get_db,
@@ -42,14 +47,75 @@ from database import (
 from services.sla_service import parse_data, formatar_tempo_resolucao, calcular_prazo
 from services.analytics_service import construir_filtro_sql, obter_metricas_analytics
 from services.export_service import gerar_csv_response, gerar_excel_response, gerar_pdf_response
+from services.audit_service import (
+    configurar_log_arquivo,
+    registrar_erro,
+    registrar_log,
+    snapshot_demanda,
+    calcular_diferencas,
+    listar_logs,
+    listar_todos_logs,
+    logs_da_demanda,
+    resumo_auditoria,
+    gerar_csv_auditoria
+)
+from services.auth_service import (
+    autenticar,
+    iniciar_sessao,
+    usuario_atual,
+    destino_seguro,
+    requer_perfil
+)
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=SESSAO_DURACAO_HORAS)
+)
+
+# Log técnico em arquivo: erros não tratados vão para logs/sgdi.log com rota e usuário
+configurar_log_arquivo()
+got_request_exception.connect(lambda sender, exception, **extra: registrar_erro(exception), app, weak=False)
+
+# Garante o esquema ao subir a aplicação (inclusive via `flask run`): usuários com senha/perfil e trilha de auditoria
+_conn_inicial = get_db()
+garantir_migracao_db(_conn_inicial)
+_conn_inicial.close()
+
+
+# =====================================================================
+# CONTROLE DE ACESSO (SPRINT 5 - FEAT 3)
+# =====================================================================
+
+ROTAS_PUBLICAS = {'login', 'static'}
+
+
+@app.before_request
+def exigir_login():
+    """Toda rota exige usuário autenticado, exceto o login e os arquivos estáticos."""
+    if request.endpoint in ROTAS_PUBLICAS or request.endpoint is None:
+        return None
+    if not session.get('usuario_id'):
+        return redirect(url_for('login', proximo=request.full_path.rstrip('?')))
+    return None
+
+
+def descrever_usuario(conn, usuario_id):
+    row = conn.execute('SELECT nome FROM usuarios WHERE id = ?', (usuario_id,)).fetchone()
+    return row['nome'] if row else None
 
 
 # =====================================================================
 # CONTEXT PROCESSORS GLOBAIS
 # =====================================================================
+
+@app.context_processor
+def inject_usuario_atual():
+    """Disponibiliza o usuário logado e seu perfil para o cabeçalho e permissões nos templates."""
+    return {'usuario_atual': usuario_atual(), 'PERFIL_ADMIN': PERFIL_ADMIN}
+
 
 @app.context_processor
 def inject_global_stats():
@@ -234,32 +300,37 @@ def criticas_atrasadas():
 @app.route('/atribuir_responsavel_rapido/<int:id>', methods=['POST'])
 def atribuir_responsavel_rapido(id):
     """Atribui responsável diretamente no painel de triagem do War Room com log imediato."""
-    responsavel_id_str = request.form.get('responsavel_id', '').strip()
-    origem = request.form.get('origem', '/criticas-atrasadas')
+    origem = destino_seguro(request.form.get('origem'), '/criticas-atrasadas')
 
     conn = get_db()
     cursor = conn.cursor()
-    demanda = cursor.execute('SELECT id, titulo FROM demandas WHERE id = ?', (id,)).fetchone()
+    demanda = cursor.execute('SELECT id, titulo, responsavel_id FROM demandas WHERE id = ?', (id,)).fetchone()
     if not demanda:
         conn.close()
         flash('Demanda não encontrada.', 'danger')
         return redirect(origem)
 
-    responsavel_id = int(responsavel_id_str) if responsavel_id_str.isdigit() else None
+    responsavel_id = ler_usuario_id(conn, request.form.get('responsavel_id', '').strip())
     cursor.execute('UPDATE demandas SET responsavel_id = ? WHERE id = ?', (responsavel_id, id))
 
     # Registra comentário automático no histórico
     agora_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    if responsavel_id:
-        usr = cursor.execute('SELECT nome FROM usuarios WHERE id = ?', (responsavel_id,)).fetchone()
-        nome_resp = usr['nome'] if usr else 'Usuário'
+    nome_anterior = descrever_usuario(conn, demanda['responsavel_id']) if demanda['responsavel_id'] else None
+    nome_resp = descrever_usuario(conn, responsavel_id) if responsavel_id else None
+    if nome_resp:
         msg_log = f'⚡ [Triagem Rápida] Responsável atribuído para: {nome_resp}.'
     else:
         msg_log = '⚠️ [Triagem Rápida] Responsável removido.'
 
     cursor.execute(
-        'INSERT INTO comentarios (demanda_id, autor_id, texto, data_criacao) VALUES (?, ?, ?, ?)',
-        (id, None, msg_log, agora_str)
+        'INSERT INTO comentarios (demanda_id, comentario, autor, data) VALUES (?, ?, ?, ?)',
+        (id, msg_log, session.get('usuario_nome'), agora_str)
+    )
+    registrar_log(
+        conn, 'ATRIBUIR_RESPONSAVEL',
+        f'Demanda #{id} - responsável alterado na triagem rápida',
+        entidade='demanda', entidade_id=id,
+        detalhes={'Responsável': {'antes': nome_anterior, 'depois': nome_resp}}
     )
     conn.commit()
     conn.close()
@@ -272,37 +343,39 @@ def atribuir_responsavel_rapido(id):
 # ROTAS DE EXPORTAÇÃO CORPORATIVA (CSV, EXCEL, PDF)
 # =====================================================================
 
-@app.route('/exportar/csv')
-def exportar_csv():
-    """Exporta relatório completo de demandas em formato CSV com cabeçalho, dados e rodapé."""
+def obter_metricas_exportacao(formato):
+    """Calcula as métricas filtradas do relatório e registra a exportação (saída de dados) na auditoria."""
     conn = get_db()
     garantir_migracao_db(conn)
     filtros = request.args.to_dict()
     metricas = obter_metricas_analytics(conn, filtros)
+    registrar_log(
+        conn, 'EXPORTAR',
+        f'Relatório de demandas exportado em {formato} ({metricas["total_demandas"]} demandas)',
+        entidade='relatorio',
+        detalhes={'Formato': formato, 'Filtros': filtros or 'Nenhum', 'Demandas exportadas': metricas['total_demandas']}
+    )
+    conn.commit()
     conn.close()
-    return gerar_csv_response(metricas)
+    return metricas
+
+
+@app.route('/exportar/csv')
+def exportar_csv():
+    """Exporta relatório completo de demandas em formato CSV com cabeçalho, dados e rodapé."""
+    return gerar_csv_response(obter_metricas_exportacao('CSV'))
 
 
 @app.route('/exportar/excel')
 def exportar_excel():
     """Exporta relatório completo em formato Excel (.xlsx) com abas analíticas formatadas."""
-    conn = get_db()
-    garantir_migracao_db(conn)
-    filtros = request.args.to_dict()
-    metricas = obter_metricas_analytics(conn, filtros)
-    conn.close()
-    return gerar_excel_response(metricas)
+    return gerar_excel_response(obter_metricas_exportacao('Excel'))
 
 
 @app.route('/exportar/pdf')
 def exportar_pdf():
     """Exporta relatório executivo em PDF com cabeçalho institucional, sumário de KPIs e SLA."""
-    conn = get_db()
-    garantir_migracao_db(conn)
-    filtros = request.args.to_dict()
-    metricas = obter_metricas_analytics(conn, filtros)
-    conn.close()
-    return gerar_pdf_response(metricas)
+    return gerar_pdf_response(obter_metricas_exportacao('PDF'))
 
 
 # =====================================================================
@@ -393,13 +466,20 @@ def nova_demanda():
 
         data_criacao_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-        conn.execute(
+        cursor = conn.execute(
             '''
             INSERT INTO demandas
             (titulo, descricao, solicitante_id, data_criacao, status, prioridade, responsavel_id, data_conclusao)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ''',
             (titulo, descricao, solicitante_id, data_criacao_str, 'Aberta', prioridade, responsavel_id, None)
+        )
+        nova_id = cursor.lastrowid
+        registrar_log(
+            conn, 'CRIAR',
+            f'Demanda #{nova_id} criada: {titulo}',
+            entidade='demanda', entidade_id=nova_id,
+            detalhes=snapshot_demanda(conn, nova_id)
         )
 
         conn.commit()
@@ -408,7 +488,7 @@ def nova_demanda():
         flash('Demanda cadastrada com sucesso!')
         return redirect(url_for('demandas'))
 
-    usuarios = conn.execute('SELECT * FROM usuarios ORDER BY nome').fetchall()
+    usuarios = listar_usuarios(conn)
     conn.close()
 
     return render_template(
@@ -445,8 +525,12 @@ def editar(id):
         responsavel_id = ler_usuario_id(conn, request.form.get('responsavel_id'))
 
         # Lógica de data_conclusao
-        demanda_atual = cursor.execute('SELECT status, data_conclusao FROM demandas WHERE id=?', (id,)).fetchone()
-        data_conclusao = demanda_atual['data_conclusao'] if demanda_atual else None
+        demanda_atual = cursor.execute('SELECT * FROM demandas WHERE id=?', (id,)).fetchone()
+        if not demanda_atual:
+            conn.close()
+            flash('Demanda não encontrada.')
+            return redirect(url_for('demandas'))
+        data_conclusao = demanda_atual['data_conclusao']
 
         if status == 'Concluída':
             if not data_conclusao:
@@ -462,6 +546,19 @@ def editar(id):
             ''',
             (titulo, descricao, solicitante_id, status, prioridade, responsavel_id, data_conclusao, id)
         )
+
+        # Auditoria: registra apenas os campos que efetivamente mudaram (antes -> depois)
+        diferencas = calcular_diferencas(conn, demanda_atual, {
+            'titulo': titulo, 'descricao': descricao, 'solicitante_id': solicitante_id, 'status': status,
+            'prioridade': prioridade, 'responsavel_id': responsavel_id, 'data_conclusao': data_conclusao,
+        })
+        if diferencas:
+            registrar_log(
+                conn, 'EDITAR',
+                f'Demanda #{demanda_atual["id"]} editada: {", ".join(diferencas)}',
+                entidade='demanda', entidade_id=demanda_atual['id'],
+                detalhes=diferencas
+            )
         conn.commit()
         conn.close()
         flash('Demanda atualizada com sucesso!')
@@ -484,14 +581,31 @@ def editar(id):
     )
 
 
-@app.route('/deletar/<id>')
+@app.route('/deletar/<int:id>', methods=['POST'])
+@requer_perfil(PERFIL_ADMIN)
 def deletar(id):
-    """Exclusão de demanda e comentários associados."""
+    """Exclusão de demanda e comentários associados (somente administradores, via POST)."""
     conn = get_db()
     garantir_migracao_db(conn)
     cursor = conn.cursor()
+
+    # Snapshot completo antes da exclusão: a base histórica preserva o que foi apagado
+    estado = snapshot_demanda(conn, id)
+    if not estado:
+        conn.close()
+        flash('Demanda não encontrada.')
+        return redirect(url_for('demandas'))
+    qtd_comentarios = cursor.execute('SELECT COUNT(*) FROM comentarios WHERE demanda_id = ?', (id,)).fetchone()[0]
+    estado['Comentários excluídos'] = qtd_comentarios
+
     cursor.execute('DELETE FROM comentarios WHERE demanda_id = ?', (id,))
     cursor.execute('DELETE FROM demandas WHERE id = ?', (id,))
+    registrar_log(
+        conn, 'EXCLUIR',
+        f'Demanda #{id} excluída: {estado["Título"]}',
+        entidade='demanda', entidade_id=id,
+        detalhes=estado
+    )
     conn.commit()
     conn.close()
     flash('Demanda removida com sucesso!')
@@ -521,27 +635,44 @@ def detalhes(id):
             dias = max(0.01, (df - dc).total_seconds() / 86400.0)
             tempo_resolucao = formatar_tempo_resolucao(dias)
 
+    historico_auditoria = logs_da_demanda(conn, demanda['id']) if demanda else []
     conn.close()
 
     if not demanda:
         flash('Demanda não encontrada.')
         return redirect(url_for('demandas'))
 
-    return render_template('detalhes.html', demanda=demanda, comentarios=comentarios, tempo_resolucao=tempo_resolucao)
+    return render_template(
+        'detalhes.html',
+        demanda=demanda,
+        comentarios=comentarios,
+        tempo_resolucao=tempo_resolucao,
+        historico_auditoria=historico_auditoria
+    )
 
 
-@app.route('/adicionar_comentario/<demanda_id>', methods=['POST'])
+@app.route('/adicionar_comentario/<int:demanda_id>', methods=['POST'])
 def adicionar_comentario(demanda_id):
-    """Inclusão de apontamento no histórico da demanda."""
+    """Inclusão de apontamento no histórico da demanda (autor = usuário autenticado)."""
     comentario = request.form.get('comentario', '').strip()
-    autor = request.form.get('autor', '').strip() or 'Anônimo'
 
     if comentario:
         conn = get_db()
         cursor = conn.cursor()
+        if not cursor.execute('SELECT 1 FROM demandas WHERE id = ?', (demanda_id,)).fetchone():
+            conn.close()
+            flash('Demanda não encontrada.')
+            return redirect(url_for('demandas'))
+
         cursor.execute(
             'INSERT INTO comentarios (demanda_id, comentario, autor, data) VALUES (?, ?, ?, ?)',
-            (demanda_id, comentario, autor, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            (demanda_id, comentario, session.get('usuario_nome'), datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+        )
+        registrar_log(
+            conn, 'COMENTAR',
+            f'Comentário adicionado na demanda #{demanda_id}',
+            entidade='demanda', entidade_id=demanda_id,
+            detalhes={'Comentário': comentario}
         )
         conn.commit()
         conn.close()
@@ -551,11 +682,103 @@ def adicionar_comentario(demanda_id):
 
 
 # =====================================================================
+# AUTENTICAÇÃO (SPRINT 5 - FEAT 1 E FEAT 3)
+# =====================================================================
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """Login por e-mail e senha: identifica o usuário que executa cada ação auditada."""
+    proximo = destino_seguro(request.values.get('proximo'), url_for('index'))
+    if session.get('usuario_id'):
+        return redirect(proximo)
+
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip()
+        senha = request.form.get('senha', '')
+
+        conn = get_db()
+        garantir_migracao_db(conn)
+        usuario, erro = autenticar(conn, email, senha)
+        if erro:
+            conn.close()
+            flash(erro)
+            return render_template('login.html', proximo=proximo, email=email)
+
+        iniciar_sessao(usuario)
+        registrar_log(conn, 'LOGIN', f'Login realizado por {usuario["nome"]}', entidade='usuario', entidade_id=usuario['id'])
+        conn.commit()
+        conn.close()
+        return redirect(proximo)
+
+    return render_template('login.html', proximo=proximo, email='')
+
+
+@app.route('/logout', methods=['POST'])
+def logout():
+    """Encerra a sessão do usuário e registra o logout na trilha."""
+    conn = get_db()
+    registrar_log(conn, 'LOGOUT', f'Logout de {session.get("usuario_nome")}', entidade='usuario', entidade_id=session.get('usuario_id'))
+    conn.commit()
+    conn.close()
+    session.clear()
+    flash('Sessão encerrada com sucesso.')
+    return redirect(url_for('login'))
+
+
+# =====================================================================
+# AUDITORIA E RASTREABILIDADE (SPRINT 5 - FEAT 2 E FEAT 4)
+# =====================================================================
+
+@app.route('/auditoria')
+@requer_perfil(PERFIL_ADMIN)
+def auditoria():
+    """Trilha de auditoria: base histórica de eventos com filtros por usuário, ação, demanda e período."""
+    pagina = request.args.get('pagina', 1, type=int)
+    filtros = {k: v for k, v in request.args.to_dict().items() if k != 'pagina' and v}
+
+    conn = get_db()
+    garantir_migracao_db(conn)
+    logs, total, pagina, total_paginas = listar_logs(conn, filtros, pagina)
+    resumo = resumo_auditoria(conn)
+    usuarios = listar_usuarios(conn)
+    conn.close()
+
+    return render_template(
+        'auditoria.html',
+        logs=logs,
+        total=total,
+        pagina=pagina,
+        total_paginas=total_paginas,
+        filtros=filtros,
+        resumo=resumo,
+        usuarios=usuarios,
+        acoes=ACOES_AUDITORIA,
+        acoes_seguranca=ACOES_SEGURANCA
+    )
+
+
+@app.route('/auditoria/exportar/csv')
+@requer_perfil(PERFIL_ADMIN)
+def exportar_auditoria_csv():
+    """Exporta a trilha de auditoria filtrada em CSV (a própria exportação também é auditada)."""
+    filtros = {k: v for k, v in request.args.to_dict().items() if k != 'pagina' and v}
+    conn = get_db()
+    garantir_migracao_db(conn)
+    logs = listar_todos_logs(conn, filtros)
+    registrar_log(
+        conn, 'EXPORTAR',
+        f'Trilha de auditoria exportada em CSV ({len(logs)} eventos)',
+        entidade='auditoria',
+        detalhes={'Formato': 'CSV', 'Filtros': filtros or 'Nenhum', 'Eventos exportados': len(logs)}
+    )
+    conn.commit()
+    conn.close()
+    return gerar_csv_auditoria(logs, filtros)
+
+
+# =====================================================================
 # INICIALIZAÇÃO
 # =====================================================================
 
 if __name__ == '__main__':
-    conn = get_db()
-    garantir_migracao_db(conn)
-    conn.close()
     app.run(debug=True, host='0.0.0.0')

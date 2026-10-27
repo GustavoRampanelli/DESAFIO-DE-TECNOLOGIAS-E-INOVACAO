@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% from "_auditoria_macros.html" import badge_acao, detalhes_log %}
+
+{% block title %}Auditoria - SGDI{% endblock %}
+
+{% block content %}
+<div class="dashboard-hero" style="margin-bottom:1.25rem;">
+    <div class="dashboard-hero-title">
+        <h1><span>🛡️</span> Auditoria e Rastreabilidade</h1>
+        <p>Base histórica imutável das ações realizadas no sistema: quem fez, o quê, quando e de onde</p>
+    </div>
+    <div class="dashboard-hero-actions">
+        <a href="{{ url_for('exportar_auditoria_csv', **filtros) }}" class="btn btn-secondary" id="btn-exportar-auditoria">
+            <span>📑</span> Exportar CSV
+        </a>
+    </div>
+</div>
+
+<!-- KPIs da trilha -->
+<div class="mini-kpi-bar">
+    <a href="/auditoria" class="mini-kpi-item" title="Todos os eventos registrados">
+        <span class="label">Eventos Registrados</span>
+        <span class="val">{{ resumo.total }}</span>
+    </a>
+    <a href="/auditoria?data_inicio={{ resumo.data_hoje }}" class="mini-kpi-item" title="Eventos registrados hoje">
+        <span class="label">Hoje</span>
+        <span class="val" style="color:var(--info);">{{ resumo.hoje }}</span>
+    </a>
+    <a href="/auditoria?acao=EXCLUIR" class="mini-kpi-item" title="Demandas excluídas">
+        <span class="label">Exclusões</span>
+        <span class="val" style="color:var(--warning);">{{ resumo.exclusoes }}</span>
+    </a>
+    <a href="/auditoria?acao=SEGURANCA" class="mini-kpi-item" title="Falhas de login, bloqueios e acessos negados">
+        <span class="label">⚠️ Alertas de Segurança</span>
+        <span class="val" style="color:var(--danger);">{{ resumo.seguranca }}</span>
+    </a>
+</div>
+
+<!-- Filtros -->
+<div class="filtros-box">
+    <form method="GET" action="/auditoria" class="filtros-form" id="form-filtros-auditoria">
+        <div class="filter-group">
+            <label for="usuario">Usuário:</label>
+            <select name="usuario" id="usuario">
+                <option value="">Todos os usuários</option>
+                {% for u in usuarios %}
+                    <option value="{{ u['id'] }}" {{ 'selected' if filtros.usuario == u['id']|string }}>{{ u['nome'] }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label for="acao">Ação:</label>
+            <select name="acao" id="acao">
+                <option value="">Todas as ações</option>
+                <option value="SEGURANCA" {{ 'selected' if filtros.acao == 'SEGURANCA' }}>⚠️ Alertas de segurança</option>
+                {% for codigo, rotulo in acoes.items() %}
+                    <option value="{{ codigo }}" {{ 'selected' if filtros.acao == codigo }}>{{ rotulo }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label for="demanda">Demanda (ID):</label>
+            <input type="text" name="demanda" id="demanda" value="{{ filtros.demanda or '' }}" placeholder="Ex: 12" inputmode="numeric">
+        </div>
+
+        <div class="filter-group">
+            <label for="data_inicio">De:</label>
+            <input type="date" name="data_inicio" id="data_inicio" value="{{ filtros.data_inicio or '' }}">
+        </div>
+
+        <div class="filter-group">
+            <label for="data_fim">Até:</label>
+            <input type="date" name="data_fim" id="data_fim" value="{{ filtros.data_fim or '' }}">
+        </div>
+
+        <div class="filtros-actions">
+            <button type="submit" class="btn btn-primary" id="btn-filtrar-auditoria">Filtrar</button>
+            <a href="/auditoria" class="btn btn-secondary" id="btn-limpar-auditoria">Limpar</a>
+        </div>
+    </form>
+</div>
+
+<!-- Trilha de eventos -->
+<div class="section-card">
+    <div class="section-card-header">
+        <div>
+            <h2><span>📜</span> Trilha de Eventos ({{ total }})</h2>
+            <p>Registros somente leitura: o banco bloqueia qualquer alteração ou exclusão de eventos</p>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="data-table" id="tabela-auditoria">
+            <thead>
+                <tr>
+                    <th style="width: 60px;">#</th>
+                    <th style="width: 150px;">Data/Hora</th>
+                    <th>Usuário</th>
+                    <th>Ação</th>
+                    <th>Descrição e Alterações</th>
+                    <th>Origem (IP)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr class="{% if log.acao in acoes_seguranca %}row-fora-sla{% endif %}">
+                    <td class="obs-code">{{ log.id }}</td>
+                    <td class="obs-code" style="font-size:0.8rem;">{{ log.data_hora }}</td>
+                    <td>
+                        {% if log.usuario_id %}
+                            <strong>{{ log.usuario_nome }}</strong>
+                        {% else %}
+                            <span class="text-danger" style="font-size:0.85rem;">{{ log.usuario_nome or 'Não identificado' }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ badge_acao(log) }}</td>
+                    <td>
+                        <div style="font-weight:600;">
+                            {% if log.entidade == 'demanda' and log.acao != 'EXCLUIR' %}
+                                <a href="/detalhes/{{ log.entidade_id }}" style="color:var(--text-main);">{{ log.descricao }}</a>
+                            {% else %}
+                                {{ log.descricao }}
+                            {% endif %}
+                        </div>
+                        {{ detalhes_log(log.detalhes) }}
+                    </td>
+                    <td class="obs-code" style="font-size:0.78rem;" title="{{ log.user_agent or '' }}">{{ log.ip or '-' }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+                        Nenhum evento encontrado para os filtros selecionados.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Paginação -->
+<div class="paginacao">
+    <div class="paginacao-links">
+        {% if pagina > 1 %}
+            <a href="{{ url_for('auditoria', pagina=pagina - 1, **filtros) }}">&laquo; Anterior</a>
+        {% endif %}
+
+        {% for p in range(1, total_paginas + 1) %}
+            {% if p == pagina %}
+                <strong>{{ p }}</strong>
+            {% elif p <= 2 or p > total_paginas - 2 or (p - pagina)|abs <= 2 %}
+                <a href="{{ url_for('auditoria', pagina=p, **filtros) }}">{{ p }}</a>
+            {% elif p == 3 or p == total_paginas - 2 %}
+                <span>…</span>
+            {% endif %}
+        {% endfor %}
+
+        {% if pagina < total_paginas %}
+            <a href="{{ url_for('auditoria', pagina=pagina + 1, **filtros) }}">Próxima &raquo;</a>
+        {% endif %}
+    </div>
+
+    <span class="paginacao-info">
+        Página {{ pagina }} de {{ total_paginas }} (Total de {{ total }} evento{{ 's' if total != 1 }})
+    </span>
+</div>
+{% endblock %}

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_auditoria_macros.html" import badge_acao, detalhes_log %}
 
 {% block title %}Demanda #{{ demanda['id'] }} - SGDI{% endblock %}
 
@@ -119,10 +120,9 @@
         <div style="margin-top: 1.5rem; background: var(--obs-bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1.5rem;">
             <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 1rem; color: var(--text-main);">Adicionar Novo Comentário</h4>
             <form method="POST" action="/adicionar_comentario/{{ demanda['id'] }}">
-                <div class="form-group">
-                    <label for="autor">Seu Nome / Autor:</label>
-                    <input type="text" name="autor" id="autor" required placeholder="Ex: Eduardo, Arthur..." style="max-width: 350px;">
-                </div>
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+                    Comentando como <strong style="color: var(--text-main);">{{ usuario_atual.nome }}</strong>
+                </p>
                 <div class="form-group">
                     <label for="comentario">Mensagem / Atualização:</label>
                     <textarea name="comentario" id="comentario" rows="3" required placeholder="Descreva os avanços, impedimentos ou notas sobre esta demanda..."></textarea>
@@ -130,6 +130,34 @@
                 <button type="submit" class="btn btn-primary">Publicar Comentário</button>
             </form>
         </div>
+    </div>
+
+    <!-- Histórico de Auditoria (Sprint 5): rastreabilidade de cada alteração desta demanda -->
+    <div style="margin-top: 2rem;" id="historico-auditoria">
+        <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text-main); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+            <span>🛡️</span> Histórico de Auditoria ({{ historico_auditoria|length }})
+        </h3>
+
+        {% for log in historico_auditoria %}
+        <div class="audit-timeline-item">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.35rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    {{ badge_acao(log) }}
+                    <strong style="color: var(--text-main); font-size: 0.9rem;">{{ log.usuario_nome or 'Não identificado' }}</strong>
+                </div>
+                <span style="font-size: 0.775rem; color: var(--text-muted);" class="obs-code">{{ log.data_hora }}</span>
+            </div>
+            {% if log.acao == 'CRIAR' %}
+                <p style="font-size: 0.85rem; color: var(--text-muted);">{{ log.descricao }}</p>
+            {% else %}
+                {{ detalhes_log(log.detalhes) }}
+            {% endif %}
+        </div>
+        {% else %}
+        <div style="background: var(--obs-bg-card); border: 1px dashed var(--border); border-radius: var(--radius-md); padding: 1.5rem; text-align: center; color: var(--text-muted);">
+            Nenhum evento auditado para esta demanda. Ações anteriores à Sprint 5 não possuem registro de auditoria.
+        </div>
+        {% endfor %}
     </div>
 </div>
 {% endblock %}

@@ -1,0 +1,26 @@
+{# Componentes reutilizados pela tela de Auditoria e pelo histórico da demanda (Sprint 5) #}
+
+{% macro badge_acao(log) %}
+    <span class="audit-badge audit-acao-{{ log.acao|lower }}">{{ log.acao_label }}</span>
+{% endmacro %}
+
+{% macro detalhes_log(detalhes) %}
+    {% if detalhes is mapping and detalhes %}
+    <ul class="audit-detalhes">
+        {% for chave, valor in detalhes.items() %}
+            <li>
+                <span class="audit-campo">{{ chave }}:</span>
+                {% if valor is mapping and 'antes' in valor %}
+                    <span class="audit-antes">{{ valor.antes if valor.antes not in (none, '') else '—' }}</span>
+                    <span class="audit-seta">&rarr;</span>
+                    <span class="audit-depois">{{ valor.depois if valor.depois not in (none, '') else '—' }}</span>
+                {% elif valor is mapping %}
+                    {% for k, v in valor.items() %}<span class="obs-code">{{ k }}={{ v }}</span>{% if not loop.last %}, {% endif %}{% endfor %}
+                {% else %}
+                    <span>{{ valor if valor not in (none, '') else '—' }}</span>
+                {% endif %}
+            </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+{% endmacro %}

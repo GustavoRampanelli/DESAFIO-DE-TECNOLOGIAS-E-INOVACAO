@@ -23,6 +23,7 @@
                 </div>
             </a>
 
+            {% if usuario_atual %}
             <!-- Obsidian Workspace Tabs -->
             <nav class="menu obs-menu">
                 <a href="/" class="nav-link obs-tab-link {% if request.path in ['/', '/dashboard', '/analytics'] %}active{% endif %}" id="nav-painel">
@@ -37,6 +38,11 @@
                         <span class="obs-badge-counter" title="{{ total_urgentes_global }} demandas críticas ou fora do SLA">{{ total_urgentes_global }}</span>
                     {% endif %}
                 </a>
+                {% if usuario_atual.perfil == PERFIL_ADMIN %}
+                <a href="/auditoria" class="nav-link obs-tab-link {% if request.path.startswith('/auditoria') %}active{% endif %}" id="nav-auditoria">
+                    <span class="obs-icon">🛡️</span> Auditoria
+                </a>
+                {% endif %}
                 <a href="/nova_demanda" class="btn-novo-header obs-btn-new" id="btn-nova-demanda">
                     <span>+</span> Nova Demanda
                 </a>
@@ -46,7 +52,19 @@
                     <input type="text" name="q" placeholder="Buscar no vault..." value="{{ request.args.get('q', '') }}" id="header-search-input">
                     <span class="obs-shortcut-hint">Ctrl+K</span>
                 </form>
+
+                <!-- Usuário autenticado (Sprint 5): toda ação fica registrada em seu nome -->
+                <div class="obs-user-session" id="usuario-sessao">
+                    <div class="obs-user-session-info">
+                        <span class="obs-user-session-nome">👤 {{ usuario_atual.nome }}</span>
+                        <span class="obs-user-session-perfil">{{ usuario_atual.perfil_label }}</span>
+                    </div>
+                    <form action="/logout" method="POST">
+                        <button type="submit" class="btn-obs-icon" title="Encerrar sessão" id="btn-logout">Sair</button>
+                    </form>
+                </div>
             </nav>
+            {% endif %}
         </div>
     </header>
 
